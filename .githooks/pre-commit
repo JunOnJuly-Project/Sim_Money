@@ -1,0 +1,6 @@
+#!/bin/sh
+# 기본 pre-commit 훅: 환경변수 체크 (있을 때만)
+if [ -f scripts/env-check.js ] && command -v node >/dev/null 2>&1; then
+  node scripts/env-check.js || exit 1
+fi
+exit 0
