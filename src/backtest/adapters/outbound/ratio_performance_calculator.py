@@ -93,6 +93,9 @@ def _calc_sharpe(equity_curve: Sequence[tuple]) -> float:
 
     WHY: Decimal → float 변환 경계를 이 함수 내부로만 제한한다.
          분산이 0이면 ZeroDivisionError 대신 0.0을 반환해 안전성을 보장한다.
+
+    M2 한정 단순화: equity_curve 등간격 가정, 무위험 수익률 차감 없음.
+    정식 구현(실제 trading day 간격, 무위험 수익률 차감)은 M3 예정.
     """
     values = [float(v) for _, v in equity_curve]
     if len(values) < 2:

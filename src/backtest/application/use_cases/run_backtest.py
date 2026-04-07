@@ -9,12 +9,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 from itertools import groupby
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from backtest.application.ports.performance_calculator import PerformanceCalculator
 from backtest.application.ports.trade_executor import TradeExecutor
 from backtest.domain.backtest_config import BacktestConfig
 from backtest.domain.position import Position
+from backtest.domain.price_bar import PriceBar
 from backtest.domain.result import BacktestResult
 from backtest.domain.signal import Side, Signal
 from backtest.domain.trade import Trade
@@ -35,7 +36,7 @@ class RunBacktest:
     def execute(
         self,
         signals: Sequence[Signal],
-        price_history: dict,
+        price_history: Mapping[str, Sequence[PriceBar]],
         config: BacktestConfig,
     ) -> BacktestResult:
         """신호·가격 이력·설정을 받아 백테스트를 실행하고 결과를 반환한다."""
@@ -46,17 +47,29 @@ class RunBacktest:
         trades: list[Trade] = []
         available_cash: Decimal = config.initial_capital
 
-        first_ts = sorted_signals[0].timestamp if sorted_signals else datetime.now(tz=timezone.utc)
-        equity_curve: list[tuple[datetime, Decimal]] = [(first_ts, config.initial_capital)]
+        # WHY: 초기 자산을 첫 스냅샷으로 기록해 total_return 계산의 기준점을 확보한다.
+        #      이후 매 bar 완료 시 mark-to-market 스냅샷이 추가된다.
+        equity_curve: list[tuple[datetime, Decimal]] = []
+
+        if not sorted_signals:
+            first_ts = datetime.now(tz=timezone.utc)
+            equity_curve.append((first_ts, config.initial_capital))
+        else:
+            # WHY: 첫 신호 timestamp 이전 초기 자산을 기준점으로 기록한다.
+            equity_curve.append((sorted_signals[0].timestamp, config.initial_capital))
 
         # WHY: timestamp 기준으로 그룹핑해 동시 신호를 일괄 처리한다.
         #      같은 시각의 LONG 신호 여러 개가 현금을 균등 배분받도록 보장한다.
         for ts, group in groupby(sorted_signals, key=lambda s: s.timestamp):
             ts_signals = list(group)
             available_cash = _process_timestamp_signals(
-                ts_signals, bar_index, config, available_cash,
-                open_positions, trades, self._trade_executor, equity_curve,
+                ts, ts_signals, bar_index, config, available_cash,
+                open_positions, trades, self._trade_executor,
             )
+            # WHY: 매 bar 처리 완료 후 mark-to-market 스냅샷을 기록한다.
+            #      M2 한정: 미실현 손익 = 현재 bar close 기준 mark-to-market.
+            snapshot = _calc_equity_snapshot(ts, available_cash, open_positions, bar_index)
+            equity_curve.append(snapshot)
 
         metrics = self._performance_calculator.compute(trades, equity_curve)
         return BacktestResult(
@@ -70,27 +83,52 @@ class RunBacktest:
 # 내부 함수 — 단일 책임 분리
 # ---------------------------------------------------------------------------
 
-def _build_bar_index(price_history: dict) -> dict:
+def _build_bar_index(
+    price_history: Mapping[str, Sequence[PriceBar]],
+) -> dict[tuple[str, datetime], PriceBar]:
     """price_history 를 (ticker, timestamp) → PriceBar 딕셔너리로 변환한다.
 
     WHY: 신호마다 O(1) 조회를 보장해 시뮬레이션 전체 복잡도를 낮춘다.
     """
-    index = {}
+    index: dict[tuple[str, datetime], PriceBar] = {}
     for ticker, bars in price_history.items():
         for bar in sorted(bars, key=lambda b: b.timestamp):
             index[(ticker, bar.timestamp)] = bar
     return index
 
 
+def _calc_equity_snapshot(
+    ts: datetime,
+    available_cash: Decimal,
+    open_positions: dict[str, Position],
+    bar_index: dict[tuple[str, datetime], PriceBar],
+) -> tuple[datetime, Decimal]:
+    """현재 timestamp 의 자산 스냅샷을 계산한다.
+
+    M2 한정: 미실현 손익 = 현재 bar close 기준 mark-to-market.
+    해당 timestamp 의 bar 가 없는 포지션은 entry_price 로 근사한다.
+    정식 구현(히스토리컬 close lookup 등)은 M3 예정.
+    """
+    unrealized: Decimal = sum(
+        (
+            bar_index[(pos.ticker, ts)].close * pos.quantity
+            if (pos.ticker, ts) in bar_index
+            else pos.entry_price * pos.quantity
+        )
+        for pos in open_positions.values()
+    ) or Decimal("0")
+    return (ts, available_cash + unrealized)
+
+
 def _process_timestamp_signals(
-    signals,
-    bar_index,
-    config,
-    available_cash,
-    open_positions,
-    trades,
-    executor,
-    equity_curve,
+    ts: datetime,
+    signals: Sequence[Signal],
+    bar_index: dict,
+    config: BacktestConfig,
+    available_cash: Decimal,
+    open_positions: dict[str, Position],
+    trades: list[Trade],
+    executor: TradeExecutor,
 ) -> Decimal:
     """단일 timestamp 의 신호 목록을 처리하고 갱신된 가용 현금을 반환한다.
 
@@ -107,14 +145,21 @@ def _process_timestamp_signals(
             continue
         available_cash = _process_exit(
             signal, bar, config, available_cash,
-            open_positions, trades, executor, equity_curve,
+            open_positions, trades, executor,
         )
 
-    # 진입 가능한 LONG 신호만 필터링 (이미 포지션 있는 ticker 제외)
-    new_long_signals = [
-        s for s in long_signals
-        if s.ticker not in open_positions and bar_index.get((s.ticker, s.timestamp)) is not None
-    ]
+    # 진입 가능한 LONG 신호만 필터링.
+    # WHY: 같은 timestamp 에 동일 ticker LONG 이 2개 이상 오면 두 번째부터 무시한다.
+    #      seen 세트로 그룹 내 첫 번째만 허용해 포지션 중복 진입을 방지한다.
+    seen: set[str] = set()
+    new_long_signals: list[Signal] = []
+    for s in long_signals:
+        if s.ticker in open_positions or s.ticker in seen:
+            continue
+        if bar_index.get((s.ticker, s.timestamp)) is None:
+            continue
+        seen.add(s.ticker)
+        new_long_signals.append(s)
 
     if not new_long_signals:
         return available_cash
@@ -132,7 +177,15 @@ def _process_timestamp_signals(
     return available_cash
 
 
-def _process_exit(signal, bar, config, available_cash, open_positions, trades, executor, equity_curve):
+def _process_exit(
+    signal: Signal,
+    bar: PriceBar,
+    config: BacktestConfig,
+    available_cash: Decimal,
+    open_positions: dict[str, Position],
+    trades: list[Trade],
+    executor: TradeExecutor,
+) -> Decimal:
     """EXIT 신호를 처리하고 갱신된 가용 현금을 반환한다."""
     position = open_positions.pop(signal.ticker, None)
     if position is None:
@@ -144,6 +197,4 @@ def _process_exit(signal, bar, config, available_cash, open_positions, trades, e
     # WHY: pnl = (exit - entry) * qty - entry_fee - exit_fee 이므로
     #      available_cash = 투자금 회수 + 순손익으로 복원된다.
     invested = position.entry_price * position.quantity
-    new_cash = available_cash + invested + trade.pnl
-    equity_curve.append((bar.timestamp, new_cash))
-    return new_cash
+    return available_cash + invested + trade.pnl

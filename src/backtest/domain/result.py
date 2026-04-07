@@ -10,6 +10,7 @@ WHY: 백테스트 결과는 생성 후 절대 변경되어서는 안 된다.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 from backtest.domain.metrics import PerformanceMetrics
@@ -21,7 +22,7 @@ class BacktestResult:
     """백테스트 실행 결과 값 객체."""
 
     trades: tuple[Trade, ...]
-    equity_curve: tuple[tuple, ...]
+    equity_curve: tuple[tuple[datetime, Decimal], ...]
     metrics: PerformanceMetrics
 
     def __post_init__(self) -> None:

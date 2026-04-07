@@ -294,6 +294,37 @@ class TestRunBacktest_중복_LONG:
         # open_long 은 단 1회만 호출되어야 한다
         assert len(executor.open_long_calls) == 1
 
+    def test_동일_timestamp_동일_ticker_LONG_2개는_1개만_반영된다(self) -> None:
+        """WHY: 동일 timestamp 그룹 내에서 같은 ticker LONG 이 2개 들어오면
+               두 번째는 포지션을 덮어쓰거나 중복 진입해서는 안 된다.
+               seen 세트 로직이 그룹 내 첫 번째만 허용함을 회귀 테스트로 고정한다."""
+        from backtest.application.use_cases.run_backtest import RunBacktest
+
+        executor = FakeTradeExecutor()
+        calculator = FakePerformanceCalculator()
+        use_case = RunBacktest(executor, calculator)
+
+        t1 = _utc(2024, 1, 1)
+        # 동일 timestamp + 동일 ticker LONG 신호 2개
+        signals = [
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=0.5),
+        ]
+        price_history = {
+            "AAPL": [_bar("AAPL", close="100", ts=t1)]
+        }
+
+        result = use_case.execute(
+            signals=signals,
+            price_history=price_history,
+            config=_default_config(),
+        )
+
+        # open_long 은 단 1회만 호출되어야 한다 (두 번째 LONG 은 seen 세트에서 드랍)
+        assert len(executor.open_long_calls) == 1
+        # trades 는 EXIT 없이 종료되었으므로 0건
+        assert result.trades == ()
+
 
 class TestRunBacktest_EXIT_없이_종료:
     """EXIT 없이 종료 → 오픈 포지션은 Trade 로 변환하지 않음."""
