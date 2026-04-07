@@ -13,7 +13,12 @@ _PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent
 _SRC_ROOT = _PROJECT_ROOT / "src"
 
 # L3 패키지 목록 — 이 목록을 수정하면 ADR-001 도 함께 수정해야 한다
-_L3_PACKAGES = frozenset({"portfolio", "signal", "backtest", "trading", "risk"})
+_L3_PACKAGES = frozenset({"portfolio", "trading_signal", "backtest", "trading", "risk"})
+
+# 조립 루트(composition root) 예외 경로.
+# WHY: similarity/adapters/inbound/fastapi_app.py 는 헥사고날의 바깥 조립 루트로
+#      L3 유스케이스/어댑터를 조립해 HTTP 로 노출한다. L2 도메인 규칙과는 무관하다.
+_COMPOSITION_ROOT_MARKERS: tuple[str, ...] = ("adapters/inbound",)
 
 
 def _iter_python_files(package_dir: pathlib.Path) -> Iterator[pathlib.Path]:
@@ -47,6 +52,9 @@ def _collect_imports_in_package(pkg_name: str) -> list[tuple[pathlib.Path, str]]
 
     results: list[tuple[pathlib.Path, str]] = []
     for py_file in _iter_python_files(pkg_dir):
+        rel_posix = py_file.relative_to(_SRC_ROOT).as_posix()
+        if any(marker in rel_posix for marker in _COMPOSITION_ROOT_MARKERS):
+            continue
         for imp in _extract_top_level_imports(py_file):
             results.append((py_file, imp))
     return results
