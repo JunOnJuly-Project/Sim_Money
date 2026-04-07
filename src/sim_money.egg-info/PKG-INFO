@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: sim-money
+Version: 0.1.0
+Requires-Python: >=3.11
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: hypothesis>=6.100; extra == "dev"
+Requires-Dist: import-linter>=2.0; extra == "dev"
