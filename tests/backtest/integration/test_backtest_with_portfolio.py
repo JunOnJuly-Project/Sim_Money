@@ -125,6 +125,44 @@ class TestBacktestWithPortfolioSizer:
         assert trade.quantity == Decimal("80")
         assert trade.pnl == Decimal("800")
 
+    def test_비제로_비용_케이스_슬리피지_수수료_cash_buffer_복합(self) -> None:
+        """slippage_bps=5, fee_rate=0.001, cash_buffer=0.2 조합 회귀 검증.
+
+        WHY: 비용 파라미터가 모두 0 인 이상적 케이스 외에
+             실전에 가까운 비용 구조에서도 pnl 이 올바르게 계산되는지 확인한다.
+             슬리피지와 수수료가 적용될 때 pnl 은 반드시 0 이 아닌 음수 방향이다.
+
+        수기 검증:
+            slippage_bps=5 → fill_long = 100 * 1.0005 = 100.05
+            cash_buffer=0.2 → weight = 0.8 → qty = 10000 * 0.8 / 100.05 ≈ 79.96
+            fill_exit = 100 * (1 - 0.0005) = 99.95
+            gross_pnl = (99.95 - 100.05) * qty = -0.1 * qty
+            entry_fee = 100.05 * qty * 0.001
+            exit_fee  = 99.95  * qty * 0.001
+            net_pnl < 0 (슬리피지+수수료 모두 손실 방향)
+        """
+        engine = _engine_with_portfolio(cash_buffer="0.2")
+        t1, t2 = _utc(2024, 4, 1), _utc(2024, 4, 2)
+        config = BacktestConfig(
+            initial_capital=Decimal("10000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal("5"),
+        )
+        signals = [
+            Signal(timestamp=t1, ticker="COST", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="COST", side=Side.EXIT, strength=Decimal("1.0")),
+        ]
+        price_history = {
+            "COST": [_bar("COST", "100", t1), _bar("COST", "100", t2)],
+        }
+
+        result = engine.run(signals=signals, price_history=price_history, config=config)
+
+        assert len(result.trades) == 1
+        trade = result.trades[0]
+        # 슬리피지+수수료 존재 → 동가 청산에도 순손실이어야 한다
+        assert trade.pnl < Decimal("0"), f"비용 적용 후 pnl 은 음수여야 함, 실제: {trade.pnl}"
+
     def test_기본_엔진과_portfolio_엔진이_strength1_cash_buffer0_동일결과(self) -> None:
         """StrengthPositionSizer(기본) vs PortfolioPositionSizer(buffer=0) → 동일 결과.
 

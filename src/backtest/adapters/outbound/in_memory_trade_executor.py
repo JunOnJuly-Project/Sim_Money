@@ -98,9 +98,14 @@ def _calc_exit_fill(close: Decimal, slippage_bps: Decimal) -> Decimal:
     return close * (Decimal("1") - slippage_bps / _BPS_DIVISOR)
 
 
-def _calc_quantity(available_cash: Decimal, strength: Decimal, fill_price: Decimal) -> Decimal:
-    """투자 수량: (available_cash * strength) / fill_price."""
-    return (available_cash * strength) / fill_price
+def _calc_quantity(available_cash: Decimal, weight: Decimal, fill_price: Decimal) -> Decimal:
+    """투자 수량: (available_cash * weight) / fill_price.
+
+    WHY: 매개변수명을 'strength' 에서 'weight' 로 변경해
+         PositionSizer.size() 반환값이 '비중(weight)' 임을 명확히 한다.
+         strength 는 신호 강도이고, 사이저가 반환하는 것은 투자 비중이다.
+    """
+    return (available_cash * weight) / fill_price
 
 
 def _calc_pnl(
