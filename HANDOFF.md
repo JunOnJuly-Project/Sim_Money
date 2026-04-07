@@ -68,7 +68,7 @@ docker compose up
 ## 3. 현재 진행 상태
 
 ### 현재 브랜치
-`feature/similarity/cointegration-strategy`
+`feature/backtest/engine-skeleton`
 
 ### 완료 ✅
 
@@ -96,6 +96,9 @@ docker compose up
 | M1 W4 S2 | GET /pair 엔드포인트 + 프론트 산점도/롤링 상관 차트 (recharts) | ✅ | feature/web/formula-playground |
 | M1 W4 S3 | docker-compose (api+web) + ASGI 부트스트랩 + smoke 테스트 | ✅ | feature/web/formula-playground |
 | M1 MVP | M1 전체 완료 (161 테스트 GREEN, import-linter 3 KEPT, L3 로직 0줄) | ✅ | main `0ce031c` |
+| M2 S1 | SpearmanStrategy (main `bbeff9c`) | ✅ | main |
+| M2 S2 | CointegrationStrategy Engle-Granger (main `043d609`) | ✅ | main |
+| M2 S3 | backtest L3 스켈레톤 — 도메인 값 객체/포트 Protocol/어댑터 스텁 (246 GREEN) | ✅ | feature/backtest/engine-skeleton |
 
 ### 🔴 블로커
 없음
@@ -105,8 +108,9 @@ docker compose up
 | 우선순위 | 슬라이스 | 설명 | 브랜치 |
 |---------|---------|------|--------|
 | ✅ | M2 S1 | `SpearmanStrategy` (main `bbeff9c`) | 완료 |
-| ✅ | M2 S2 | `CointegrationStrategy` (Engle-Granger, numpy-only ADF) | `feature/similarity/cointegration-strategy` (현재) |
-| 1 | M2 S3 | `BacktestEngine` L3 스켈레톤 (포트 정의 + Fake 어댑터) | `feature/backtest/engine-skeleton` |
+| ✅ | M2 S2 | `CointegrationStrategy` (Engle-Granger, numpy-only ADF) | 완료 (`043d609`) |
+| ✅ | M2 S3 | `backtest` L3 스켈레톤 — 값 객체 6종/포트 Protocol 4종/InMemoryBacktestEngine NotImplementedError (246 GREEN) | `feature/backtest/engine-skeleton` (현재) |
+| 1 | M2 S4 | `InMemoryBacktestEngine` L3 구현 (90% 커버리지, 다중 에이전트, `/develop`) | `feature/backtest/engine-impl` |
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
 M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)
