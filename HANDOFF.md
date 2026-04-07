@@ -88,6 +88,8 @@ docker compose up
 | M1 W2 S3 | 골든 회귀 테스트 T-REG-01~05 (결정론적 픽스처) | ✅ | feature/similarity/weighted-sum-strategy |
 | M1 W2 | → main 머지 (`10538ca`) | ✅ | main |
 | M1 W3 S1 | FindSimilarTickers 유스케이스 + PriceRepository.load 포트 확장 | ✅ | feature/api/find-similar |
+| M1 W3 S2 | DuckDBPriceRepository.load 구현 (멱등 재조회) | ✅ | feature/api/find-similar |
+| M1 W3 S3 | FastAPI 인바운드 어댑터 (/health, /similar/{symbol}) | ✅ | feature/api/find-similar |
 
 ### 🔴 블로커
 없음
