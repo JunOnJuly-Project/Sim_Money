@@ -70,6 +70,9 @@ _BACKTEST_DEFAULT_FEE = 0.001
 _BACKTEST_DEFAULT_SLIPPAGE = 5.0
 # 무위험 수익률 기본값 — 연환산 비율 (0 = 무위험 수익 없음)
 _BACKTEST_DEFAULT_RFR = 0.0
+# 포트폴리오 제약 기본값 — equal_weight 사이저 선택 시에만 의미 있음
+_BACKTEST_DEFAULT_MAX_POSITION_WEIGHT = 1.0
+_BACKTEST_DEFAULT_CASH_BUFFER = 0.0
 
 
 def create_app(
@@ -189,6 +192,18 @@ def create_app(
         sizer: Literal["strength", "equal_weight"] = Query(
             _SIZER_STRENGTH, description="포지션 사이징 방식 (strength: 신호 강도 비례, equal_weight: 균등 비중)"
         ),
+        max_position_weight: float = Query(
+            _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT,
+            gt=0.0,
+            le=1.0,
+            description="최대 포지션 비중 (0~1). equal_weight 사이저 선택 시에만 적용.",
+        ),
+        cash_buffer: float = Query(
+            _BACKTEST_DEFAULT_CASH_BUFFER,
+            ge=0.0,
+            lt=1.0,
+            description="현금 버퍼 비율 (0~1). equal_weight 사이저 선택 시에만 적용.",
+        ),
     ) -> dict:
         """페어 백테스트를 실행하고 결과를 반환한다.
 
@@ -252,8 +267,10 @@ def create_app(
         )
 
         # 8. InMemoryBacktestEngine 실행 — 선택된 사이저 주입
+        # WHY: max_position_weight/cash_buffer 는 equal_weight 선택 시에만 의미 있다.
+        #      다른 사이저에서는 _build_sizer 내부에서 무시된다.
         from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
-        sizer_instance = _build_sizer(sizer)
+        sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
         executor = InMemoryTradeExecutor(sizer=sizer_instance) if sizer_instance else InMemoryTradeExecutor()
         engine = InMemoryBacktestEngine(trade_executor=executor)
         result = engine.run(backtest_signals, price_history, config)
@@ -264,16 +281,24 @@ def create_app(
     return app
 
 
-def _build_sizer(sizer_name: str) -> PositionSizer | None:
+def _build_sizer(
+    sizer_name: str,
+    max_position_weight: float = _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT,
+    cash_buffer: float = _BACKTEST_DEFAULT_CASH_BUFFER,
+) -> PositionSizer | None:
     """사이저 이름으로 PositionSizer 인스턴스를 생성한다.
 
     WHY: 조립 루트(어댑터)에서만 L3 모듈 간 조립을 허용한다.
          equal_weight 선택 시 portfolio L3 모듈을 import 해 조립하고,
          strength(기본값)는 None 을 반환해 InMemoryTradeExecutor 기본값을 사용한다.
          import 를 함수 내부로 한정해 strength 선택 시 portfolio 의존을 제거한다.
+         max_position_weight/cash_buffer 는 equal_weight 시에만 의미 있으며
+         다른 사이저에서는 무시된다 (경고 로그 없음 — 클라이언트 책임).
 
     Args:
         sizer_name: "strength" 또는 "equal_weight"
+        max_position_weight: 최대 포지션 비중 (0~1). equal_weight 전용.
+        cash_buffer: 현금 버퍼 비율 (0~1). equal_weight 전용.
 
     Returns:
         PositionSizer 인스턴스, 또는 기본값 사용 시 None
@@ -282,7 +307,11 @@ def _build_sizer(sizer_name: str) -> PositionSizer | None:
         from portfolio.adapters.outbound.equal_weight_strategy import EqualWeightStrategy
         from portfolio.domain.constraints import PortfolioConstraints
         from backtest.adapters.outbound.portfolio_position_sizer import PortfolioPositionSizer
-        return PortfolioPositionSizer(EqualWeightStrategy(), PortfolioConstraints())
+        constraints = PortfolioConstraints(
+            max_position_weight=Decimal(str(max_position_weight)),
+            cash_buffer=Decimal(str(cash_buffer)),
+        )
+        return PortfolioPositionSizer(EqualWeightStrategy(), constraints)
     # strength: 기본 StrengthPositionSizer 사용 — None 반환으로 기존 동작 유지
     return None
 

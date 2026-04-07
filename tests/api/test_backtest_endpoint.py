@@ -11,6 +11,7 @@ WHY: 백테스트 엔드포인트는 trading_signal + backtest 두 L3 모듈을 
     3. 종목 B 시계열 없음 — 404
     4. 교집합이 lookback+1 미만 — 400
     5. rfr=0.05 — 200 + sharpe 가 rfr=0 결과와 다름
+    6. sizer=equal_weight + cash_buffer=0.3 — 200 + 응답 키 검증
 """
 from __future__ import annotations
 
@@ -306,6 +307,68 @@ class TestBacktestEndpoint_sizer_파라미터:
         assert "metrics" in body
         assert "trades" in body
         assert "equity_curve" in body
+
+
+# ── 케이스 6: equal_weight + portfolio constraints ─────────────────────────
+
+# constraints 파라미터 테스트용 상수
+_CASH_BUFFER_30PCT = 0.3
+_MAX_POSITION_WEIGHT_50PCT = 0.5
+
+
+class TestBacktestEndpoint_포트폴리오_제약:
+    """equal_weight 사이저에서 portfolio constraints 쿼리 파라미터가 올바르게 반영되는지 검증한다."""
+
+    def test_cash_buffer_0_3_equal_weight_200_응답(self) -> None:
+        """WHY: cash_buffer=0.3 은 투자 가능 자본이 70%로 제한됨을 의미한다.
+               equal_weight 사이저가 PortfolioConstraints 를 받아 정상 동작하는지
+               HTTP 계층까지 검증해 파이프라인 연결 오류를 조기에 발견한다.
+        """
+        series_a = _make_price_series("AAA", n=30, start_price=100.0)
+        series_b = _make_price_series("BBB", n=30, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get(
+            f"/backtest/pair/AAA/BBB?sizer=equal_weight&cash_buffer={_CASH_BUFFER_30PCT}"
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert "metrics" in body
+        assert "trades" in body
+        assert "equity_curve" in body
+
+    def test_max_position_weight_0_5_equal_weight_200_응답(self) -> None:
+        """WHY: max_position_weight=0.5 는 단일 포지션이 50% 초과 시 재분배됨을 의미한다.
+               PortfolioConstraints 생성 시 Decimal 변환이 올바르게 이루어지는지 검증한다.
+        """
+        series_a = _make_price_series("AAA", n=30, start_price=100.0)
+        series_b = _make_price_series("BBB", n=30, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get(
+            f"/backtest/pair/AAA/BBB"
+            f"?sizer=equal_weight&max_position_weight={_MAX_POSITION_WEIGHT_50PCT}"
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert "metrics" in body
+
+    def test_strength_사이저는_cash_buffer_무시하고_200_응답(self) -> None:
+        """WHY: strength 사이저는 portfolio constraints 를 사용하지 않는다.
+               cash_buffer 파라미터가 전달되더라도 strength 동작에 영향을 주지 않아야 한다.
+        """
+        series_a = _make_price_series("AAA", n=30, start_price=100.0)
+        series_b = _make_price_series("BBB", n=30, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get(
+            f"/backtest/pair/AAA/BBB?sizer=strength&cash_buffer={_CASH_BUFFER_30PCT}"
+        )
+
+        assert response.status_code == 200
+        assert "metrics" in response.json()
 
 
 class TestBacktestEndpoint_rfr_파라미터:
