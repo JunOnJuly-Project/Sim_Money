@@ -85,13 +85,15 @@ docker compose up
 | M1 W1 | → main 머지 (`d9b5942`) | ✅ | main |
 | M1 W2 S1 | Correlation 값 객체 + pearson_correlation + SimilarityStrategy 포트 | ✅ | feature/similarity/weighted-sum-strategy |
 | M1 W2 S2 | WeightedSumStrategy + SimilarityWeights (ADR-002 M1 단순화) | ✅ | feature/similarity/weighted-sum-strategy |
+| M1 W2 S3 | 골든 회귀 테스트 T-REG-01~05 (결정론적 픽스처) | ✅ | feature/similarity/weighted-sum-strategy |
 
 ### 🔴 블로커
 없음
 
 ### 미완료 (다음 작업 순서) ⏳
 
-1. **M1 W2 S3** — 골든 회귀 테스트 T-REG-01~05
+1. **M1 W2 마무리** — main 머지
+2. **M1 W3** — Epic 3 FastAPI 엔드포인트 + Epic 4 Next.js 기본 탐색
 3. **M1 W3** — Epic 3 FastAPI + Epic 4 Next.js 초안
 2. **M1 W2** — Epic 2 (유사도 엔진 WeightedSum), 골든 회귀 테스트 GREEN
 3. **M1 W3** — Epic 3 (FastAPI) + Epic 4 초안 (Next.js 기본 탐색)
