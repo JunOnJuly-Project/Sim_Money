@@ -52,3 +52,4 @@ adapters.outbound → application.use_cases → application.ports → domain
 
 - [ADR-001](../../docs/adr/ADR-001-domain-levels.md) — 도메인 엄격도 레벨
 - [ADR-004](../../docs/adr/ADR-004-portfolio-l3-activation.md) — portfolio L3 활성화 결정
+- [ADR-005](../../docs/adr/ADR-005-l3-horizontal-dependency.md) — L3 패키지 간 수평 의존 정책 (backtest→portfolio 어댑터 레이어 전용)
