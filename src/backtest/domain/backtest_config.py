@@ -15,6 +15,8 @@ from decimal import Decimal
 _MIN_CAPITAL = Decimal("0")
 _MIN_FEE_RATE = Decimal("0")
 _MIN_SLIPPAGE_BPS = Decimal("0")
+_MIN_RISK_FREE_RATE = Decimal("0")
+_MAX_RISK_FREE_RATE = Decimal("1")
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,7 @@ class BacktestConfig:
     slippage_bps: Decimal
     start: datetime | None = None
     end: datetime | None = None
+    risk_free_rate: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         """경제적 불변식 검증."""
@@ -35,3 +38,7 @@ class BacktestConfig:
             raise ValueError("fee_rate 는 0 이상이어야 합니다.")
         if self.slippage_bps < _MIN_SLIPPAGE_BPS:
             raise ValueError("slippage_bps 는 0 이상이어야 합니다.")
+        # WHY: 음수 또는 100% 초과 무위험수익률은 경제적으로 무의미하다.
+        #      샤프 비율 계산 시 왜곡을 방지하기 위해 생성 시점에 차단한다.
+        if self.risk_free_rate < _MIN_RISK_FREE_RATE or self.risk_free_rate > _MAX_RISK_FREE_RATE:
+            raise ValueError("risk_free_rate 는 0 이상 1 이하이어야 합니다.")
