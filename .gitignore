@@ -12,3 +12,12 @@ venv/
 *.log
 .cache/
 data/raw/
+
+# Python build/test artifacts
+*.egg-info/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
