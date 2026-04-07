@@ -4,6 +4,9 @@ import { useState, FormEvent } from "react";
 // WHY: BlockMath 는 블록 수준 LaTeX 수식을 렌더한다.
 //      react-katex 는 KaTeX 위에 React 래퍼만 얹기 때문에 번들 크기 증가가 최소다.
 import { BlockMath } from "react-katex";
+// WHY: PairChart 는 recharts 를 사용하는 클라이언트 전용 컴포넌트다.
+//      같은 "use client" 파일에서 import 하면 번들 경계가 자연스럽게 유지된다.
+import PairChart from "./PairChart";
 
 // ── 타입 정의 ──────────────────────────────────────────────────────────────
 
@@ -367,6 +370,9 @@ function ExploreForm({
 
 interface ResultTableProps {
   items: SimilarItem[];
+  /** 행 클릭 시 선택된 peer ticker 를 부모에게 전달한다 */
+  selectedTicker: string | null;
+  onRowClick: (ticker: string) => void;
 }
 
 /** 점수가 양수면 초록 배지, 음수면 빨간 배지를 반환한다 */
@@ -385,7 +391,7 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-function ResultTable({ items }: ResultTableProps) {
+function ResultTable({ items, selectedTicker, onRowClick }: ResultTableProps) {
   if (items.length === 0) return null;
 
   return (
@@ -408,26 +414,35 @@ function ResultTable({ items }: ResultTableProps) {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr
-              key={item.ticker}
-              className="border-t"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <td className="px-4 py-3 font-mono" style={{ color: "var(--muted)" }}>
-                {item.rank}
-              </td>
-              <td className="px-4 py-3 font-semibold" style={{ color: "var(--foreground)" }}>
-                {item.ticker}
-              </td>
-              <td className="px-4 py-3 text-right font-mono" style={{ color: "var(--accent)" }}>
-                {item.score.toFixed(SCORE_DECIMAL_PLACES)}
-              </td>
-              <td className="px-4 py-3 text-center">
-                <ScoreBadge score={item.score} />
-              </td>
-            </tr>
-          ))}
+          {items.map((item) => {
+            const isSelected = item.ticker === selectedTicker;
+            return (
+              <tr
+                key={item.ticker}
+                // WHY: cursor-pointer + hover 배경으로 행이 클릭 가능함을 명시적으로 전달한다.
+                className="border-t cursor-pointer transition-colors"
+                style={{
+                  borderColor: "var(--border)",
+                  // WHY: 선택된 행을 accent 색으로 하이라이트해 현재 차트 대상을 명확히 표시한다.
+                  backgroundColor: isSelected ? "rgba(var(--accent-rgb, 56,189,248), 0.12)" : undefined,
+                }}
+                onClick={() => onRowClick(item.ticker)}
+              >
+                <td className="px-4 py-3 font-mono" style={{ color: "var(--muted)" }}>
+                  {item.rank}
+                </td>
+                <td className="px-4 py-3 font-semibold" style={{ color: "var(--foreground)" }}>
+                  {item.ticker}
+                </td>
+                <td className="px-4 py-3 text-right font-mono" style={{ color: "var(--accent)" }}>
+                  {item.score.toFixed(SCORE_DECIMAL_PLACES)}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <ScoreBadge score={item.score} />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -454,6 +469,9 @@ export default function ExplorePage() {
   const [error, setError] = useState<string | null>(null);
   // 응답에서 받은 실제 사용 가중치를 별도로 보관한다
   const [usedWeights, setUsedWeights] = useState<{ w1: number; w2: number; w3: number } | null>(null);
+  // WHY: 행 클릭으로 선택된 peer ticker 를 보관해 PairChart 마운트/언마운트를 제어한다.
+  //      null 이면 차트 패널을 숨긴다.
+  const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
 
   /** 폼 필드 부분 업데이트 핸들러 */
   function handleFormChange(updated: Partial<SearchForm>) {
@@ -477,6 +495,8 @@ export default function ExplorePage() {
     setError(null);
     setResults([]);
     setUsedWeights(null);
+    // WHY: 새 탐색을 시작하면 이전 쌍 차트를 닫아 혼선을 방지한다.
+    setSelectedPeer(null);
 
     try {
       const params = new URLSearchParams({
@@ -595,9 +615,33 @@ export default function ExplorePage() {
               </p>
             )}
           </div>
-          <ResultTable items={results} />
+          <ResultTable
+            items={results}
+            selectedTicker={selectedPeer}
+            onRowClick={setSelectedPeer}
+          />
         </section>
       )}
+
+      {/* 쌍 시각화 패널
+          WHY: selectedPeer 가 null 이 아닐 때만 마운트해 불필요한 API 호출을 막는다.
+               ticker 는 "MARKET:SYMBOL" 또는 단순 심볼 형태일 수 있으므로
+               콜론 유무를 확인하고 분기한다. */}
+      {selectedPeer !== null && (() => {
+        const parts = selectedPeer.split(":");
+        const hasTwoSegments = parts.length >= 2;
+        const marketB = hasTwoSegments ? parts[0] : form.market;
+        const symbolB = hasTwoSegments ? parts.slice(1).join(":") : selectedPeer;
+        return (
+          <PairChart
+            market={form.market}
+            symbolA={form.symbol}
+            marketB={marketB}
+            symbolB={symbolB}
+            asOf={form.as_of}
+          />
+        );
+      })()}
 
       {/* 결과 없음 (제출 후 빈 배열) */}
       {!isLoading && results.length === 0 && error === null && form.symbol !== "" && (

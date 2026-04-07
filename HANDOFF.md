@@ -93,14 +93,15 @@ docker compose up
 | M1 W3 | 백엔드 → main 머지 (`f83b131`) | ✅ | main |
 | M1 W3 S4 | Next.js 15 탐색 UI 스캐폴드 (/, 폼+결과 테이블, 고지 배너) | ✅ | feature/web/explore-ui |
 | M1 W4 S1 | FastAPI w1/w2/w3 쿼리 + 프론트 슬라이더/KaTeX 플레이그라운드 | ✅ | feature/web/formula-playground |
+| M1 W4 S2 | GET /pair 엔드포인트 + 프론트 산점도/롤링 상관 차트 (recharts) | ✅ | feature/web/formula-playground |
 
 ### 🔴 블로커
 없음
 
 ### 미완료 (다음 작업 순서) ⏳
 
-1. **M1 W4 S2** — 시각화 (산점도/롤링 상관 차트)
-2. **M1 W4 S3** — docker-compose (api + web) + 스모크 테스트
+1. **M1 W4 S3** — docker-compose (api + web) + 스모크 테스트
+2. **M1 마무리** — main 머지, M1 회고, M2 계획
 3. **M1 W3** — Epic 3 FastAPI + Epic 4 Next.js 초안
 2. **M1 W2** — Epic 2 (유사도 엔진 WeightedSum), 골든 회귀 테스트 GREEN
 3. **M1 W3** — Epic 3 (FastAPI) + Epic 4 초안 (Next.js 기본 탐색)
