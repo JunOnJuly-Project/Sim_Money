@@ -13,6 +13,9 @@ venv/
 .cache/
 data/raw/
 
+# Claude Code 로컬 세션 데이터
+.claude/
+
 # Python build/test artifacts
 *.egg-info/
 .coverage
