@@ -100,3 +100,15 @@ def test_delta_합계_보존():
     delta_sum = sum(i.delta_weight for i in plan.intents)
     # 현재 합=0.8, 목표 합=1.0 → delta 합=0.2
     assert abs(delta_sum - Decimal("0.2")) < Decimal("1e-9")
+
+
+def test_total_equity_가_0_이면_현재_비중이_모두_0_으로_처리된다():
+    """WHY: 방어적 분기 (보통 상위에서 validate 되지만 단위 커버리지를 보장한다)."""
+    uc = PlanRebalance(min_trade_weight=Decimal("0"))
+    current = [_pos("A", "500000")]
+    targets = [_tw("A", "0.5")]
+    plan = uc.execute(current, targets, Decimal("0"))
+    # 현재 비중=0 (total_equity=0), 목표=0.5 → BUY delta=0.5
+    assert len(plan.intents) == 1
+    assert plan.intents[0].side == "BUY"
+    assert plan.intents[0].delta_weight == Decimal("0.5")
