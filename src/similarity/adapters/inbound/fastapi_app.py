@@ -1,27 +1,37 @@
 """
-유사 종목 탐색 FastAPI 인바운드 어댑터.
+유사 종목 탐색 + 백테스트 FastAPI 인바운드 어댑터.
 
 WHY: 헥사고날 아키텍처에서 HTTP 관심사(라우팅·직렬화·에러 변환)와
      도메인 로직을 분리한다. 이 파일은 포트에만 의존하므로
      인프라 교체(Flask, gRPC 등) 시 도메인 코드를 건드리지 않아도 된다.
      strategy_factory 를 주입받아 요청마다 가중치 기반 전략을 동적으로 생성한다.
+     /backtest/pair 엔드포인트는 조립 루트로서 trading_signal 과 backtest
+     두 L3 모듈을 결합한다 — 어댑터 레이어이므로 허용된다.
 """
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Callable
 
 from fastapi import FastAPI, HTTPException, Query
 
+from backtest.adapters.outbound.in_memory_backtest_engine import InMemoryBacktestEngine
+from backtest.domain.backtest_config import BacktestConfig
+from backtest.domain.price_bar import PriceBar
 from market_data.application.ports import PriceRepository
 from market_data.domain.adjusted_price import AdjustedPrice
 from market_data.domain.market import Market
 from market_data.domain.ticker import Ticker
+from similarity.adapters.inbound._signal_conversion import trading_signal_to_backtest_signal
 from similarity.application.find_similar_tickers import FindSimilarQuery, FindSimilarTickers
 from similarity.application.ports import SimilarityStrategy
 from similarity.domain.pearson import pearson_correlation
 from similarity.domain.weighted_sum_strategy import SimilarityWeights
+from trading_signal.adapters.outbound.pair_trading_signal_source import PairTradingSignalSource
+from trading_signal.application.use_cases.generate_pair_signals import PairSignalConfig
+from trading_signal.domain.pair import Pair
 from universe.application.ports import UniverseSource
 
 # 에러 메시지 식별자 — 매직 문자열 금지
@@ -45,6 +55,14 @@ _PAIR_ROLLING_WINDOW = 20
 
 # 교집합 계산에 필요한 최소 날짜 수 (log_returns 가 1개 이상이려면 최소 2개 필요)
 _MIN_INTERSECTION_SIZE = 2
+
+# 백테스트 엔드포인트 기본값 상수
+_BACKTEST_DEFAULT_LOOKBACK = 20
+_BACKTEST_DEFAULT_ENTRY = 1.5
+_BACKTEST_DEFAULT_EXIT = 0.5
+_BACKTEST_DEFAULT_INITIAL = 10_000.0
+_BACKTEST_DEFAULT_FEE = 0.001
+_BACKTEST_DEFAULT_SLIPPAGE = 5.0
 
 
 def create_app(
@@ -150,7 +168,177 @@ def create_app(
             "rolling_corr": {"window": _PAIR_ROLLING_WINDOW, "values": rolling_values},
         }
 
+    @app.get("/backtest/pair/{a}/{b}")
+    def backtest_pair_endpoint(
+        a: str,
+        b: str,
+        lookback: int = Query(_BACKTEST_DEFAULT_LOOKBACK),
+        entry: float = Query(_BACKTEST_DEFAULT_ENTRY),
+        exit_: float = Query(_BACKTEST_DEFAULT_EXIT, alias="exit"),
+        initial: float = Query(_BACKTEST_DEFAULT_INITIAL),
+        fee: float = Query(_BACKTEST_DEFAULT_FEE),
+        slippage: float = Query(_BACKTEST_DEFAULT_SLIPPAGE),
+    ) -> dict:
+        """페어 백테스트를 실행하고 결과를 반환한다.
+
+        WHY: 조립 루트(어댑터 레이어)에서 trading_signal 과 backtest
+             두 L3 모듈을 결합한다. L1→L3 직접 import 는 금지이나
+             이 파일은 인바운드 어댑터(조립 루트)이므로 허용된다.
+        """
+        # 1. 두 종목의 가격 시계열 로드 — Market 없이 symbol 만 받으므로
+        #    기존 더미 Market 으로 Ticker 를 생성하고, repository.load 를 호출한다.
+        #    WHY: /backtest/pair 는 심플 심볼 식별자만 사용하므로 Market 은 내부 식별용.
+        ticker_a, ticker_b = _resolve_tickers(a, b)
+
+        series_a = repository.load(ticker_a)
+        if series_a is None:
+            raise HTTPException(status_code=404, detail=f"{a}: 가격 시계열 없음")
+
+        series_b = repository.load(ticker_b)
+        if series_b is None:
+            raise HTTPException(status_code=404, detail=f"{b}: 가격 시계열 없음")
+
+        # 2. 공통 날짜 교집합 가격 시계열 추출
+        common_dates, prices_a, prices_b = _intersect_series(series_a, series_b)
+        if len(common_dates) < lookback + 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"교집합 길이({len(common_dates)})가 lookback({lookback})+1 보다 짧습니다.",
+            )
+
+        # 3. 타임스탬프 변환 (date → datetime UTC)
+        timestamps = [
+            datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+            for d in common_dates
+        ]
+
+        # 4. PairTradingSignalSource 조립 → TradingSignal 생성
+        pair = Pair(a=a, b=b)
+        signal_config = PairSignalConfig(
+            entry_threshold=entry,
+            exit_threshold=exit_,
+            lookback_window=lookback,
+        )
+        signal_source = PairTradingSignalSource(
+            pairs=[pair],
+            timestamps=timestamps,
+            config=signal_config,
+        )
+        trading_signals = signal_source.generate({a: prices_a, b: prices_b})
+
+        # 5. TradingSignal → backtest Signal 변환
+        backtest_signals = [trading_signal_to_backtest_signal(ts) for ts in trading_signals]
+
+        # 6. price_history 구성 — PriceBar 로 변환
+        price_history = _build_price_history(a, b, timestamps, prices_a, prices_b)
+
+        # 7. BacktestConfig 생성
+        config = BacktestConfig(
+            initial_capital=Decimal(str(initial)),
+            fee_rate=Decimal(str(fee)),
+            slippage_bps=Decimal(str(slippage)),
+        )
+
+        # 8. InMemoryBacktestEngine 실행
+        engine = InMemoryBacktestEngine()
+        result = engine.run(backtest_signals, price_history, config)
+
+        # 9. 응답 직렬화
+        return _serialize_backtest_result(a, b, result, trading_signals)
+
     return app
+
+
+def _resolve_tickers(a: str, b: str) -> tuple[Ticker, Ticker]:
+    """심볼 문자열로부터 Ticker 를 생성한다.
+
+    WHY: /backtest/pair 는 마켓 구분 없이 심볼만 받는다.
+         기본 마켓(KRX)으로 Ticker 를 생성해 repository.load 에 넘긴다.
+         실제 저장소가 심볼 기반으로 검색하므로 Market 은 식별용으로만 사용된다.
+    """
+    default_market = Market("KRX")
+    return Ticker(default_market, a), Ticker(default_market, b)
+
+
+def _build_price_history(
+    ticker_a: str,
+    ticker_b: str,
+    timestamps: list[datetime],
+    prices_a: list[float],
+    prices_b: list[float],
+) -> dict[str, list[PriceBar]]:
+    """(ticker, timestamp) → PriceBar 매핑을 위한 price_history 딕셔너리를 생성한다.
+
+    WHY: InMemoryBacktestEngine 은 PriceBar.close 를 사용해 mark-to-market 을 계산한다.
+         OHLCV 는 모두 adj_close 로 근사한다 (일별 데이터의 단순화).
+    """
+    bars_a = [_make_price_bar(ticker_a, ts, price) for ts, price in zip(timestamps, prices_a)]
+    bars_b = [_make_price_bar(ticker_b, ts, price) for ts, price in zip(timestamps, prices_b)]
+    return {ticker_a: bars_a, ticker_b: bars_b}
+
+
+def _make_price_bar(ticker: str, timestamp: datetime, price: float) -> PriceBar:
+    """단일 adj_close 가격으로 PriceBar 를 생성한다.
+
+    WHY: 일별 OHLCV 가 없으므로 OHLCV 전체를 adj_close 로 설정한다.
+         volume 은 0 으로 설정해 불변식을 충족한다.
+    """
+    close = Decimal(str(price))
+    return PriceBar(
+        timestamp=timestamp,
+        ticker=ticker,
+        open=close,
+        high=close,
+        low=close,
+        close=close,
+        volume=Decimal("0"),
+    )
+
+
+def _serialize_backtest_result(
+    a: str,
+    b: str,
+    result: object,
+    trading_signals: list,
+) -> dict:
+    """BacktestResult 를 JSON 직렬화 가능한 딕셔너리로 변환한다.
+
+    WHY: BacktestResult 는 도메인 값 객체라 datetime/Decimal 을 포함하므로
+         HTTP 응답 전 직렬화 변환이 필요하다.
+    """
+    from trading_signal.domain.side import Side as TSSide
+
+    metrics = result.metrics
+    trades = [
+        {
+            "ticker": t.ticker,
+            "entry_time": t.entry_time.isoformat(),
+            "exit_time": t.exit_time.isoformat(),
+            "pnl": float(t.pnl),
+        }
+        for t in result.trades
+    ]
+    equity_curve = [
+        {"timestamp": ts.isoformat(), "value": float(val)}
+        for ts, val in result.equity_curve
+    ]
+
+    long_count = sum(1 for s in trading_signals if s.side == TSSide.LONG)
+    short_count = sum(1 for s in trading_signals if s.side == TSSide.SHORT)
+    exit_count = sum(1 for s in trading_signals if s.side == TSSide.EXIT)
+
+    return {
+        "pair": {"a": a, "b": b},
+        "metrics": {
+            "total_return": float(metrics.total_return),
+            "sharpe": metrics.sharpe,
+            "max_drawdown": float(metrics.max_drawdown),
+            "win_rate": metrics.win_rate,
+        },
+        "trades": trades,
+        "equity_curve": equity_curve,
+        "signals_count": {"long": long_count, "short": short_count, "exit": exit_count},
+    }
 
 
 def _execute_query(

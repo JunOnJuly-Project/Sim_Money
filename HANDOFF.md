@@ -68,7 +68,7 @@ docker compose up
 ## 3. 현재 진행 상태
 
 ### 현재 브랜치
-`feature/backtest/engine-skeleton`
+`main` (M2 MVP 완료)
 
 ### 완료 ✅
 
@@ -103,6 +103,8 @@ docker compose up
 | M2 S4 리뷰 R1 | 중복 LONG 드랍(seen 세트), equity_curve mark-to-market (current close), 타입 힌트 정밀화, _calc_sharpe M2 한정 단순화 docstring (96 GREEN, 97%, 5 KEPT) | ✅ | main |
 | M2 S4.5 | ADR-003 + Signal.strength float→Decimal 마이그레이션 + Sharpe docstring 보강 (295 GREEN, 97%, 5 KEPT) | ✅ | main |
 | M2 S5 | trading_signal L3 패키지 활성화 — Pair/ZScore/TradingSignal 도메인 + GeneratePairSignals 유스케이스 + PairTradingSignalSource 어댑터. stdlib `signal` 충돌 회피 위해 `trading_signal` 로 리네임. 335 GREEN, 커버리지 99%, 7 KEPT (trading_signal layers + purity 추가) | ✅ | feature/signal/pair-trading-source |
+| M2 S6 | 백테스트 웹 대시보드 — GET /backtest/pair/{a}/{b} 엔드포인트 + TradingSignal→backtest.Signal 변환 + Next.js /backtest 라우트 (Metrics/Equity/Trades 차트). similarity.adapters.inbound 조립 루트 예외 (import-linter ignore_imports + 아키텍처 테스트 composition root marker). 342 GREEN, 7 KEPT | ✅ | feature/web/backtest-dashboard |
+| M2 MVP | M2 전체 완료 (342 테스트 GREEN, 7 import-linter KEPT, backtest 97% / trading_signal 99% 커버리지) | ✅ | main |
 
 ### 🔴 블로커
 없음

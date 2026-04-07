@@ -43,6 +43,13 @@ name = "L2 packages must not import L3 packages"
 type = "forbidden"
 source_modules = ["market_data", "universe", "similarity"]
 forbidden_modules = ["portfolio", "trading_signal", "backtest", "trading", "risk"]
+# WHY: similarity.adapters.inbound 은 헥사고날 조립 루트(composition root)로
+#      HTTP 경계에서 L3 유스케이스/어댑터를 조립해 노출한다. L2 도메인/어플리케이션
+#      순수성 규칙의 예외이며, 실질 리스크는 헥사고날 layers 계약으로 대체 방어한다.
+ignore_imports = [
+    "similarity.adapters.inbound.* -> backtest.**",
+    "similarity.adapters.inbound.* -> trading_signal.**",
+]
 
 [[tool.importlinter.contracts]]
 name = "market_data domain must not import adapters"
