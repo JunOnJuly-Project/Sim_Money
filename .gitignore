@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 .next/
+web/out/
 .env
 .env.local
 __pycache__/
