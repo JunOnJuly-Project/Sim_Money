@@ -12,6 +12,7 @@ from typing import Optional
 
 import duckdb
 
+from market_data.domain.adjusted_price import AdjustedPrice
 from market_data.domain.price_series import PriceSeries
 from market_data.domain.ticker import Ticker
 
@@ -40,6 +41,13 @@ _LATEST_DATE_SQL: str = """
 SELECT MAX(trade_date)
 FROM prices
 WHERE market = ? AND symbol = ?
+"""
+
+_LOAD_SQL: str = """
+SELECT trade_date, adj_close
+FROM prices
+WHERE market = ? AND symbol = ?
+ORDER BY trade_date ASC
 """
 
 
@@ -98,6 +106,27 @@ class DuckDBPriceRepository:
         if row is None or row[0] is None:
             return None
         return row[0]
+
+    def load(self, ticker: Ticker) -> Optional[PriceSeries]:
+        """저장된 종목의 수정주가 시계열 전체를 PriceSeries 로 반환한다.
+
+        WHY: 유사도 계산 등 하위 서비스가 DB 에서 시계열을 안전하게 재구성할 수 있도록
+             도메인 객체 형태로 반환한다. 데이터가 없으면 None 을 반환해
+             호출자가 '이력 없음' 상태를 명시적으로 처리하게 한다.
+        """
+        rows = self._con.execute(
+            _LOAD_SQL,
+            [ticker.market.value, ticker.symbol],
+        ).fetchall()
+
+        if not rows:
+            return None
+
+        prices = tuple(
+            (trade_date, AdjustedPrice.from_float(adj_close))
+            for trade_date, adj_close in rows
+        )
+        return PriceSeries(ticker=ticker, prices=prices)
 
     def close(self) -> None:
         """DuckDB 연결을 닫아 리소스를 반환한다.
