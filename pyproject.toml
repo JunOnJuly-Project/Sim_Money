@@ -96,6 +96,14 @@ source_modules = ["backtest.domain", "backtest.application"]
 forbidden_modules = ["pandas", "numpy"]
 
 [[tool.importlinter.contracts]]
+name = "backtest.domain/application must not import portfolio"
+type = "forbidden"
+# WHY: backtest → portfolio (L3 수평 의존) 는 아웃바운드 어댑터에서만 허용한다.
+#      도메인/애플리케이션 순수성을 보존하고 anti-corruption layer 역할을 어댑터에 고정.
+source_modules = ["backtest.domain", "backtest.application"]
+forbidden_modules = ["portfolio"]
+
+[[tool.importlinter.contracts]]
 name = "portfolio hexagonal layers"
 type = "layers"
 layers = ["portfolio.adapters", "portfolio.application", "portfolio.domain"]

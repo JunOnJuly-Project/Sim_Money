@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from backtest.adapters.outbound.strength_position_sizer import StrengthPositionSizer
+from backtest.application.ports.position_sizer import PositionSizer
 from backtest.domain.backtest_config import BacktestConfig
 from backtest.domain.position import Position
 from backtest.domain.price_bar import PriceBar
@@ -21,6 +23,15 @@ _BPS_DIVISOR = Decimal("10000")
 
 class InMemoryTradeExecutor:
     """슬리피지·수수료 공식을 메모리 내에서 시뮬레이션하는 TradeExecutor 어댑터."""
+
+    def __init__(self, sizer: PositionSizer | None = None) -> None:
+        """PositionSizer 를 주입받아 초기화한다.
+
+        WHY: 사이징 전략을 생성자 주입으로 분리해 Portfolio 기반 사이저 등
+             다양한 구현체를 기존 호출부 변경 없이 교체할 수 있다.
+             기본값 StrengthPositionSizer 로 기존 동작과 100% 호환된다.
+        """
+        self._sizer: PositionSizer = sizer if sizer is not None else StrengthPositionSizer()
 
     def open_long(
         self,
@@ -35,7 +46,8 @@ class InMemoryTradeExecutor:
              실제 시장과 동일한 비용 구조를 재현할 수 있다.
         """
         fill_price = _calc_long_fill(bar.close, config.slippage_bps)
-        quantity = _calc_quantity(available_cash, signal.strength, fill_price)
+        weight = self._sizer.size(signal, available_cash)
+        quantity = _calc_quantity(available_cash, weight, fill_price)
         return Position(
             ticker=signal.ticker,
             quantity=quantity,
