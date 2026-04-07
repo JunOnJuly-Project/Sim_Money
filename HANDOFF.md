@@ -98,7 +98,8 @@ docker compose up
 | M1 MVP | M1 전체 완료 (161 테스트 GREEN, import-linter 3 KEPT, L3 로직 0줄) | ✅ | main `0ce031c` |
 | M2 S1 | SpearmanStrategy (main `bbeff9c`) | ✅ | main |
 | M2 S2 | CointegrationStrategy Engle-Granger (main `043d609`) | ✅ | main |
-| M2 S3 | backtest L3 스켈레톤 — 도메인 값 객체/포트 Protocol/어댑터 스텁 (246 GREEN) | ✅ | feature/backtest/engine-skeleton |
+| M2 S3 | backtest L3 스켈레톤 — 도메인 값 객체/포트 Protocol/어댑터 스텁 (246 GREEN) | ✅ | main |
+| M2 S4 | backtest L3 실구현 — BacktestConfig/RunBacktest 이벤트 루프/TradeExecutor/PerformanceCalculator/Engine 조립 (294 GREEN, backtest 커버리지 97%, import-linter 5 KEPT) | ✅ | feature/backtest/engine-impl |
 
 ### 🔴 블로커
 없음
@@ -109,8 +110,9 @@ docker compose up
 |---------|---------|------|--------|
 | ✅ | M2 S1 | `SpearmanStrategy` (main `bbeff9c`) | 완료 |
 | ✅ | M2 S2 | `CointegrationStrategy` (Engle-Granger, numpy-only ADF) | 완료 (`043d609`) |
-| ✅ | M2 S3 | `backtest` L3 스켈레톤 — 값 객체 6종/포트 Protocol 4종/InMemoryBacktestEngine NotImplementedError (246 GREEN) | `feature/backtest/engine-skeleton` (현재) |
-| 1 | M2 S4 | `InMemoryBacktestEngine` L3 구현 (90% 커버리지, 다중 에이전트, `/develop`) | `feature/backtest/engine-impl` |
+| ✅ | M2 S3 | `backtest` L3 스켈레톤 (main `bf74ef6`) | 완료 |
+| ✅ | M2 S4 | `backtest` L3 실구현 (294 GREEN, 커버리지 97%, 5 KEPT) | `feature/backtest/engine-impl` (현재) |
+| 1 | M2 S5 | SignalSource 구체 구현 (pair trading) 또는 백테스트 웹 대시보드 | TBD |
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
 M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)
