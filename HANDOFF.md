@@ -105,6 +105,8 @@ docker compose up
 | M2 S5 | trading_signal L3 패키지 활성화 — Pair/ZScore/TradingSignal 도메인 + GeneratePairSignals 유스케이스 + PairTradingSignalSource 어댑터. stdlib `signal` 충돌 회피 위해 `trading_signal` 로 리네임. 335 GREEN, 커버리지 99%, 7 KEPT (trading_signal layers + purity 추가) | ✅ | feature/signal/pair-trading-source |
 | M2 S6 | 백테스트 웹 대시보드 — GET /backtest/pair/{a}/{b} 엔드포인트 + TradingSignal→backtest.Signal 변환 + Next.js /backtest 라우트 (Metrics/Equity/Trades 차트). similarity.adapters.inbound 조립 루트 예외 (import-linter ignore_imports + 아키텍처 테스트 composition root marker). 342 GREEN, 7 KEPT | ✅ | feature/web/backtest-dashboard |
 | M2 MVP | M2 전체 완료 (342 테스트 GREEN, 7 import-linter KEPT, backtest 97% / trading_signal 99% 커버리지) | ✅ | main |
+| infra | docker compose 부트스트랩 픽스 (Dockerfile.api 순서, next.config 프록시 분리, 시드 10종 확장) | ✅ | main `b045b6d` |
+| M3 S1 | RatioPerformanceCalculator Sharpe 정식 구현 — risk_free_rate, 등간격 검증, ddof=1 표본 표준편차, equity≤0 가드, timestamp 타입 가드 (363 GREEN, 7 KEPT) | ✅ | feature/backtest/sharpe-formal |
 
 ### 🔴 블로커
 없음

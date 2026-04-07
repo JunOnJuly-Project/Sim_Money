@@ -71,6 +71,10 @@ class RunBacktest:
             snapshot = _calc_equity_snapshot(ts, available_cash, open_positions, bar_index)
             equity_curve.append(snapshot)
 
+        # WHY: 동일 timestamp 가 연속으로 기록되면 _validate_intervals 에서
+        #      간격=0 으로 비등간격 오류가 발생한다. 중복 timestamp 는 최신 값만 유지한다.
+        equity_curve = _dedup_equity_curve(equity_curve)
+
         metrics = self._performance_calculator.compute(trades, equity_curve)
         return BacktestResult(
             trades=tuple(trades),
@@ -82,6 +86,21 @@ class RunBacktest:
 # ---------------------------------------------------------------------------
 # 내부 함수 — 단일 책임 분리
 # ---------------------------------------------------------------------------
+
+def _dedup_equity_curve(
+    equity_curve: list[tuple[datetime, Decimal]],
+) -> list[tuple[datetime, Decimal]]:
+    """동일 timestamp 중복 포인트를 제거하고 최신 값만 유지한다.
+
+    WHY: equity_curve 에 초기 자본 기준점과 첫 bar 스냅샷이 같은 timestamp 로
+         삽입될 수 있다. 중복 timestamp 는 등간격 검증을 오탐하게 만들므로
+         최신(후행) 포인트를 남기고 이전 포인트는 제거한다.
+    """
+    seen: dict[datetime, Decimal] = {}
+    for ts, val in equity_curve:
+        seen[ts] = val  # 동일 timestamp 면 나중 값으로 덮어쓴다
+    return [(ts, val) for ts, val in seen.items()]
+
 
 def _build_bar_index(
     price_history: Mapping[str, Sequence[PriceBar]],
