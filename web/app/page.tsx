@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import Link from "next/link";
 // WHY: BlockMath 는 블록 수준 LaTeX 수식을 렌더한다.
 //      react-katex 는 KaTeX 위에 React 래퍼만 얹기 때문에 번들 크기 증가가 최소다.
 import { BlockMath } from "react-katex";
@@ -543,6 +544,19 @@ export default function ExplorePage() {
     <main className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
       {/* ADR-000: 개인 전용 고지 문구 — 페이지 최상단 배치 필수 */}
       <DisclaimerBanner />
+
+      {/* WHY: 백테스트 대시보드로의 내비게이션을 최상단에 노출해 탐색성을 높인다 */}
+      <Link
+        href="/backtest"
+        className="self-start rounded-md border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
+        style={{
+          borderColor: "var(--accent)",
+          color: "var(--accent)",
+          backgroundColor: "rgba(56,189,248,0.08)",
+        }}
+      >
+        백테스트 대시보드
+      </Link>
 
       {/* 헤더 + KaTeX 공식 */}
       <div className="flex flex-col gap-2">
