@@ -94,3 +94,15 @@ name = "backtest domain/application purity (no pandas/numpy)"
 type = "forbidden"
 source_modules = ["backtest.domain", "backtest.application"]
 forbidden_modules = ["pandas", "numpy"]
+
+[[tool.importlinter.contracts]]
+name = "portfolio hexagonal layers"
+type = "layers"
+layers = ["portfolio.adapters", "portfolio.application", "portfolio.domain"]
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "portfolio domain/application purity (no pandas/numpy)"
+type = "forbidden"
+source_modules = ["portfolio.domain", "portfolio.application"]
+forbidden_modules = ["pandas", "numpy"]
