@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# WHY: pyproject.toml 만 먼저 복사해 의존성 레이어를 캐시한다.
+#      소스 코드 변경 시 pip install 을 재실행하지 않아 빌드 속도가 향상된다.
+COPY pyproject.toml ./
+
+RUN pip install --no-cache-dir -e .
+
+COPY src ./src
+
+ENV PYTHONPATH=/app/src
+
+EXPOSE 8000
+
+CMD ["uvicorn", "similarity.adapters.inbound.main:app", "--host", "0.0.0.0", "--port", "8000"]
