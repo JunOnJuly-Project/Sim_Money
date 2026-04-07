@@ -21,12 +21,18 @@ interface BacktestForm {
   slippage: number;
   rfr: number;
   sizer: SizerType;
+  /** 최대 포지션 비중 — equal_weight 사이저 선택 시에만 의미 있음 */
+  maxPositionWeight: number;
+  /** 현금 버퍼 비율 — equal_weight 사이저 선택 시에만 의미 있음 */
+  cashBuffer: number;
 }
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
 
 // 무위험 수익률 최대값 — 현실적 연환산 상한선
 const RFR_MAX = 0.2;
+// 포트폴리오 제약 입력 스텝 — 5% 단위 조정
+const CONSTRAINTS_STEP = 0.05;
 
 const DEFAULT_FORM: BacktestForm = {
   a: "",
@@ -39,6 +45,8 @@ const DEFAULT_FORM: BacktestForm = {
   slippage: 5.0,
   rfr: 0.0,
   sizer: "strength",
+  maxPositionWeight: 1.0,
+  cashBuffer: 0.0,
 };
 
 // ── 서브 컴포넌트: 고지 배너 ──────────────────────────────────────────────
@@ -236,6 +244,29 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
         </div>
       </div>
 
+      {/* WHY: 포트폴리오 제약 파라미터는 equal_weight 사이저 선택 시에만 의미 있으므로
+               조건부로 렌더해 사용자 혼란을 방지한다. */}
+      {form.sizer === "equal_weight" && (
+        <div className="grid grid-cols-2 gap-3">
+          <NumberInputRow
+            label="최대 포지션 비중 (0~1)"
+            value={form.maxPositionWeight}
+            step={CONSTRAINTS_STEP}
+            min={CONSTRAINTS_STEP}
+            max={1}
+            onChange={(v) => onChange({ maxPositionWeight: v })}
+          />
+          <NumberInputRow
+            label="현금 버퍼 (0~1)"
+            value={form.cashBuffer}
+            step={CONSTRAINTS_STEP}
+            min={0}
+            max={0.95}
+            onChange={(v) => onChange({ cashBuffer: v })}
+          />
+        </div>
+      )}
+
       <button
         type="submit"
         disabled={isLoading}
@@ -267,6 +298,12 @@ function buildBacktestUrl(form: BacktestForm): string {
     rfr: String(form.rfr),
     sizer: form.sizer,
   });
+  // WHY: equal_weight 사이저 선택 시에만 제약 파라미터를 쿼리에 포함한다.
+  //      다른 사이저에서는 백엔드가 무시하지만 불필요한 파라미터 전송을 줄인다.
+  if (form.sizer === "equal_weight") {
+    params.set("max_position_weight", String(form.maxPositionWeight));
+    params.set("cash_buffer", String(form.cashBuffer));
+  }
   return `/api/backtest/pair/${encodeURIComponent(form.a)}/${encodeURIComponent(form.b)}?${params}`;
 }
 
