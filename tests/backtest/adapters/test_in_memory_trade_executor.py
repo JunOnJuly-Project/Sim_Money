@@ -60,7 +60,7 @@ def _config(fee_rate: str = "0", slippage_bps: str = "0") -> BacktestConfig:
     )
 
 
-def _long_signal(ticker: str, strength: float = 1.0, ts: datetime | None = None) -> Signal:
+def _long_signal(ticker: str, strength: Decimal = Decimal("1"), ts: datetime | None = None) -> Signal:
     """테스트용 LONG 신호 생성 헬퍼."""
     return Signal(
         timestamp=ts or _utc(2024, 1, 1),
@@ -76,7 +76,7 @@ def _exit_signal(ticker: str, ts: datetime | None = None) -> Signal:
         timestamp=ts or _utc(2024, 1, 2),
         ticker=ticker,
         side=Side.EXIT,
-        strength=1.0,
+        strength=Decimal("1"),
     )
 
 
@@ -110,7 +110,7 @@ class TestInMemoryTradeExecutor_open_long_기본:
         from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
 
         executor = InMemoryTradeExecutor()
-        signal = _long_signal("AAPL", strength=1.0)
+        signal = _long_signal("AAPL", strength=Decimal("1"))
         bar = _bar("AAPL", close="100", ts=_utc(2024, 1, 1))
         config = _config(fee_rate="0", slippage_bps="0")
         available_cash = Decimal("10000")
@@ -209,9 +209,9 @@ class TestInMemoryTradeExecutor_수수료:
         exit_ts = _utc(2024, 1, 2)
         config = _config(fee_rate="0.001", slippage_bps="0")
 
-        # 진입가 100, 수량 계산: available_cash=10000, strength=1.0
+        # 진입가 100, 수량 계산: available_cash=10000, strength=Decimal("1.0")
         # fill_price(LONG)=100, qty=10000/100=100
-        signal = _long_signal("AAPL", strength=1.0)
+        signal = _long_signal("AAPL", strength=Decimal("1"))
         bar_entry = _bar("AAPL", close="100", ts=entry_ts)
         position = executor.open_long(signal, bar_entry, config, Decimal("10000"))
 
@@ -236,7 +236,7 @@ class TestInMemoryTradeExecutor_슬리피지:
 
         executor = InMemoryTradeExecutor()
         config = _config(fee_rate="0", slippage_bps="10")
-        signal = _long_signal("AAPL", strength=1.0)
+        signal = _long_signal("AAPL", strength=Decimal("1"))
         bar = _bar("AAPL", close="100", ts=_utc(2024, 1, 1))
 
         position = executor.open_long(signal, bar, config, Decimal("10000"))
@@ -275,22 +275,22 @@ class TestInMemoryTradeExecutor_strength:
     """strength 에 따른 수량 비례 케이스."""
 
     def test_strength_05이면_수량이_1의_절반이다(self) -> None:
-        """WHY: strength=0.5 는 가용 현금의 절반만 투자하라는 신호다.
+        """WHY: strength=Decimal("0.5") 는 가용 현금의 절반만 투자하라는 신호다.
                quantity = (available_cash * 0.5) / fill_price"""
         from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
 
         executor = InMemoryTradeExecutor()
         config = _config(fee_rate="0", slippage_bps="0")
 
-        signal_full = _long_signal("AAPL", strength=1.0)
-        signal_half = _long_signal("AAPL", strength=0.5)
+        signal_full = _long_signal("AAPL", strength=Decimal("1"))
+        signal_half = _long_signal("AAPL", strength=Decimal("0.5"))
         bar = _bar("AAPL", close="100", ts=_utc(2024, 1, 1))
         available_cash = Decimal("10000")
 
         pos_full = executor.open_long(signal_full, bar, config, available_cash)
         pos_half = executor.open_long(signal_half, bar, config, available_cash)
 
-        # strength=1.0 → qty=100, strength=0.5 → qty=50
+        # strength=Decimal("1.0") → qty=100, strength=Decimal("0.5") → qty=50
         assert pos_half.quantity == pos_full.quantity / 2
 
 
@@ -305,7 +305,7 @@ class TestInMemoryTradeExecutor_Decimal_정밀도:
         executor = InMemoryTradeExecutor()
         # close=3 이면 qty = 10000 / 3 → 소수 발생
         config = _config(fee_rate="0", slippage_bps="0")
-        signal = _long_signal("AAPL", strength=1.0)
+        signal = _long_signal("AAPL", strength=Decimal("1"))
         bar = _bar("AAPL", close="3", ts=_utc(2024, 1, 1))
 
         position = executor.open_long(signal, bar, config, Decimal("10000"))

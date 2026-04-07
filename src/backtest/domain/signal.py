@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 
 
@@ -27,13 +28,13 @@ class Signal:
     timestamp: datetime
     ticker: str
     side: Side
-    strength: float
+    strength: Decimal
 
     def __post_init__(self) -> None:
         """신호 불변식 검증."""
         if not self.ticker:
             raise ValueError("ticker 는 빈 문자열일 수 없습니다.")
-        if self.strength < 0.0:
+        if self.strength < Decimal("0"):
             raise ValueError("strength 는 0.0 이상이어야 합니다.")
-        if self.strength > 1.0:
+        if self.strength > Decimal("1"):
             raise ValueError("strength 는 1.0 이하여야 합니다.")

@@ -142,40 +142,40 @@ class TestSide_Enum:
 
 class TestSignal_정상:
     def test_유효한_strength로_Signal을_생성한다(self):
-        """WHY: strength=0.8 처럼 [0,1] 범위 내의 값이면 정상 생성되어야 한다."""
+        """WHY: strength=Decimal("0.8") 처럼 [0,1] 범위 내의 값이면 정상 생성되어야 한다."""
         sig = Signal(
             timestamp=_NOW,
             ticker="005930",
             side=Side.LONG,
-            strength=0.8,
+            strength=Decimal("0.8"),
         )
-        assert sig.strength == 0.8
+        assert sig.strength == Decimal("0.8")
         assert sig.side is Side.LONG
 
     def test_strength가_경계값_0_과_1에서_Signal을_생성한다(self):
-        """WHY: 경계값 0.0 과 1.0 은 유효한 강도 값이다."""
-        sig_min = Signal(timestamp=_NOW, ticker="A", side=Side.EXIT, strength=0.0)
-        sig_max = Signal(timestamp=_NOW, ticker="A", side=Side.LONG, strength=1.0)
-        assert sig_min.strength == 0.0
-        assert sig_max.strength == 1.0
+        """WHY: 경계값 0 과 1 은 유효한 강도 값이다."""
+        sig_min = Signal(timestamp=_NOW, ticker="A", side=Side.EXIT, strength=Decimal("0"))
+        sig_max = Signal(timestamp=_NOW, ticker="A", side=Side.LONG, strength=Decimal("1"))
+        assert sig_min.strength == Decimal("0")
+        assert sig_max.strength == Decimal("1")
 
 
 class TestSignal_불변식_위반:
     def test_strength가_0_미만이면_ValueError를_던진다(self):
         """WHY: 음수 신호 강도는 의미 없으며 하위 계산에서 오류를 유발한다."""
         with pytest.raises(ValueError, match="strength"):
-            Signal(timestamp=_NOW, ticker="005930", side=Side.LONG, strength=-0.1)
+            Signal(timestamp=_NOW, ticker="005930", side=Side.LONG, strength=Decimal("-0.1"))
 
     def test_strength가_1_초과이면_ValueError를_던진다(self):
         """WHY: 정규화된 강도는 최대 1.0 이어야 한다."""
         with pytest.raises(ValueError, match="strength"):
-            Signal(timestamp=_NOW, ticker="005930", side=Side.SHORT, strength=1.01)
+            Signal(timestamp=_NOW, ticker="005930", side=Side.SHORT, strength=Decimal("1.01"))
 
     def test_Signal은_frozen이라_필드_변경_시_FrozenInstanceError를_던진다(self):
         """WHY: 신호는 생성 후 변경되면 재현성이 깨진다."""
-        sig = Signal(timestamp=_NOW, ticker="A", side=Side.LONG, strength=0.5)
+        sig = Signal(timestamp=_NOW, ticker="A", side=Side.LONG, strength=Decimal("0.5"))
         with pytest.raises(dataclasses.FrozenInstanceError):
-            sig.strength = 0.9  # type: ignore[misc]
+            sig.strength = Decimal("0.9")  # type: ignore[misc]
 
 
 # ═════════════════════════════════════════════

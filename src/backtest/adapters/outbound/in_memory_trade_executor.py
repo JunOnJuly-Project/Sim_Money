@@ -86,9 +86,9 @@ def _calc_exit_fill(close: Decimal, slippage_bps: Decimal) -> Decimal:
     return close * (Decimal("1") - slippage_bps / _BPS_DIVISOR)
 
 
-def _calc_quantity(available_cash: Decimal, strength: float, fill_price: Decimal) -> Decimal:
+def _calc_quantity(available_cash: Decimal, strength: Decimal, fill_price: Decimal) -> Decimal:
     """투자 수량: (available_cash * strength) / fill_price."""
-    return (available_cash * Decimal(str(strength))) / fill_price
+    return (available_cash * strength) / fill_price
 
 
 def _calc_pnl(

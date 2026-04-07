@@ -180,8 +180,8 @@ class TestRunBacktest_LONG_EXIT_사이클:
         t1 = _utc(2024, 1, 1)
         t2 = _utc(2024, 1, 2)
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [
@@ -209,8 +209,8 @@ class TestRunBacktest_LONG_EXIT_사이클:
         t1 = _utc(2024, 1, 1)
         t2 = _utc(2024, 1, 2)
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [
@@ -243,7 +243,7 @@ class TestRunBacktest_미체결_신호:
         t_missing = _utc(2024, 1, 5)  # price_history 에 없는 날짜
 
         signals = [
-            Signal(timestamp=t_missing, ticker="AAPL", side=Side.LONG, strength=1.0),
+            Signal(timestamp=t_missing, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [_bar("AAPL", close="100", ts=t1)]  # t_missing 의 bar 없음
@@ -275,8 +275,8 @@ class TestRunBacktest_중복_LONG:
         t1 = _utc(2024, 1, 1)
         t2 = _utc(2024, 1, 2)
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.LONG, strength=1.0),  # 중복
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),  # 중복
         ]
         price_history = {
             "AAPL": [
@@ -307,8 +307,8 @@ class TestRunBacktest_중복_LONG:
         t1 = _utc(2024, 1, 1)
         # 동일 timestamp + 동일 ticker LONG 신호 2개
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=0.5),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("0.5")),
         ]
         price_history = {
             "AAPL": [_bar("AAPL", close="100", ts=t1)]
@@ -340,7 +340,7 @@ class TestRunBacktest_EXIT_없이_종료:
 
         t1 = _utc(2024, 1, 1)
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
             # EXIT 신호 없음
         ]
         price_history = {
@@ -370,7 +370,7 @@ class TestRunBacktest_SHORT_스킵:
 
         t1 = _utc(2024, 1, 1)
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.SHORT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.SHORT, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [_bar("AAPL", close="100", ts=t1)]
@@ -401,8 +401,8 @@ class TestRunBacktest_price_history_정렬:
         t1 = _utc(2024, 1, 1)
         t2 = _utc(2024, 1, 2)
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
         ]
         # 의도적으로 역순 제공
         price_history = {

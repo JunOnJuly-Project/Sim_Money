@@ -114,8 +114,8 @@ class TestInMemoryBacktestEngine_E2E_단순:
         t2 = _utc(2024, 1, 2)
 
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [
