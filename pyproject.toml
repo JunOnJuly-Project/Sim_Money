@@ -49,6 +49,10 @@ forbidden_modules = ["portfolio", "trading_signal", "backtest", "trading", "risk
 ignore_imports = [
     "similarity.adapters.inbound.* -> backtest.**",
     "similarity.adapters.inbound.* -> trading_signal.**",
+    # WHY: /backtest/pair 조립 루트에서 equal_weight 사이저 선택 시
+    #      portfolio 어댑터를 직접 조립한다. L2 도메인/애플리케이션 순수성 규칙의
+    #      예외이며 인바운드 어댑터(조립 루트)에서만 허용된다.
+    "similarity.adapters.inbound.* -> portfolio.**",
 ]
 
 [[tool.importlinter.contracts]]

@@ -285,6 +285,29 @@ _RFR_CUSTOM = 0.05
 _SERIES_N = 60  # 충분한 교집합 보장
 
 
+# ── 케이스 6: sizer 선택 ──────────────────────────────────────────────────
+
+class TestBacktestEndpoint_sizer_파라미터:
+    """sizer 쿼리 파라미터가 PositionSizer 선택에 올바르게 반영되는지 검증한다."""
+
+    def test_sizer_equal_weight_200_응답(self) -> None:
+        """WHY: sizer=equal_weight 요청 시 PortfolioPositionSizer 가 조립되어
+               백테스트가 정상 동작하는지 HTTP 계층까지 검증한다.
+               200 응답과 필수 키 존재를 확인해 파이프라인 연결 오류를 조기에 발견한다.
+        """
+        series_a = _make_price_series("AAA", n=30, start_price=100.0)
+        series_b = _make_price_series("BBB", n=30, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get("/backtest/pair/AAA/BBB?sizer=equal_weight")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert "metrics" in body
+        assert "trades" in body
+        assert "equity_curve" in body
+
+
 class TestBacktestEndpoint_rfr_파라미터:
     """rfr 쿼리 파라미터가 BacktestConfig 에 올바르게 주입되는지 검증한다."""
 

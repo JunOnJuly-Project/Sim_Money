@@ -110,6 +110,7 @@ docker compose up
 | M3 S2 | risk_free_rate 끝단 노출 — BacktestConfig 필드/불변식, RunBacktest→PerformanceCalculator 전달, /backtest/pair rfr 쿼리, 대시보드 입력 필드 (372 GREEN, 7 KEPT) | ✅ | feature/backtest/risk-free-rate-config |
 | M3 S3 | portfolio L3 활성화 — ADR-004 + 도메인(TargetWeight/Constraints/RebalancePlan) + WeightingStrategy 포트 + ComputeTargetWeights/PlanRebalance 유스케이스 + EqualWeightStrategy 어댑터. 423 GREEN, 9 KEPT, 커버리지 92% | ✅ | feature/portfolio/position-sizing |
 | M3 S4 | backtest ↔ portfolio 통합 — PositionSizer 포트 + StrengthPositionSizer(기본) + PortfolioPositionSizer(WeightingStrategy 래퍼) + InMemoryTradeExecutor 리팩터 + L3↔L3 의존 계약 명문화. 436 GREEN, 10 KEPT | ✅ | feature/backtest/portfolio-integration |
+| M3 S5 | sizer 선택 API/UI — /backtest/pair `sizer=strength\|equal_weight` 쿼리 + 대시보드 토글 + _calc_quantity 매개변수명 리팩터 + 비제로 비용 회귀 테스트. 438 GREEN, 10 KEPT | ✅ | feature/api/sizer-selection |
 
 ### 🔴 블로커
 없음
