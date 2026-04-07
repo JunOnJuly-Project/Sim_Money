@@ -1,0 +1,26 @@
+/* Tailwind CSS 4.x — @import 방식으로 기본 레이어 주입 */
+@import "tailwindcss";
+
+/* 전역 베이스 스타일: 다크 배경 / 밝은 텍스트 */
+:root {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --accent: #38bdf8;
+  --muted: #475569;
+  --border: #1e293b;
+  --card-bg: #1e293b;
+  --danger: #f87171;
+  --success: #4ade80;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family:
+    "Pretendard Variable",
+    "Pretendard",
+    -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
+    sans-serif;
+}

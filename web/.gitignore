@@ -1,0 +1,18 @@
+# 의존성 패키지 — 버전 관리 대상 아님
+node_modules/
+
+# Next.js 빌드 아티팩트
+.next/
+out/
+
+# 환경변수 파일 — 민감 정보 포함 가능
+.env
+.env.local
+.env*.local
+
+# 에디터 설정
+.vscode/
+.idea/
+
+# OS 메타데이터
+.DS_Store
