@@ -52,3 +52,14 @@ class PriceRepository(Protocol):
         데이터가 없으면 None 을 반환한다.
         """
         ...
+
+    def load(self, ticker: Ticker) -> Optional[PriceSeries]:
+        """저장소에서 해당 종목의 전체 PriceSeries 를 로드한다.
+
+        WHY: 유사도 계산 유스케이스는 종목별 전체 가격 시계열이 필요하다.
+             save/latest_date 만으로는 읽기 경로를 지원할 수 없으므로
+             포트에 load 를 추가해 유스케이스-어댑터 계약을 명시한다.
+
+        데이터가 없으면 None 을 반환한다.
+        """
+        ...

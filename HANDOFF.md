@@ -86,6 +86,8 @@ docker compose up
 | M1 W2 S1 | Correlation 값 객체 + pearson_correlation + SimilarityStrategy 포트 | ✅ | feature/similarity/weighted-sum-strategy |
 | M1 W2 S2 | WeightedSumStrategy + SimilarityWeights (ADR-002 M1 단순화) | ✅ | feature/similarity/weighted-sum-strategy |
 | M1 W2 S3 | 골든 회귀 테스트 T-REG-01~05 (결정론적 픽스처) | ✅ | feature/similarity/weighted-sum-strategy |
+| M1 W2 | → main 머지 (`10538ca`) | ✅ | main |
+| M1 W3 S1 | FindSimilarTickers 유스케이스 + PriceRepository.load 포트 확장 | ✅ | feature/api/find-similar |
 
 ### 🔴 블로커
 없음
