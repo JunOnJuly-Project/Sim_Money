@@ -82,14 +82,17 @@ docker compose up
 | M1 W1 S4 | FinanceDataReaderSource 어댑터 (lazy import, FakeReader 격리) | ✅ | feature/market-data/pipeline-skeleton |
 | M1 W1 S5 | DuckDBPriceRepository 어댑터 (멱등 INSERT OR REPLACE, in-memory 테스트) | ✅ | feature/market-data/pipeline-skeleton |
 | M1 W1 S6 | UniverseSnapshot 애그리거트 + UniverseSource 포트 (생존편향 명시) | ✅ | feature/market-data/pipeline-skeleton |
+| M1 W1 | → main 머지 (`d9b5942`) | ✅ | main |
+| M1 W2 S1 | Correlation 값 객체 + pearson_correlation + SimilarityStrategy 포트 | ✅ | feature/similarity/weighted-sum-strategy |
 
 ### 🔴 블로커
 없음
 
 ### 미완료 (다음 작업 순서) ⏳
 
-1. **M1 W1 마무리** — feature/market-data/pipeline-skeleton → main PR & 머지
-2. **M1 W2** — Epic 2: similarity 엔진 (WeightedSumStrategy) + 골든 회귀
+1. **M1 W2 S2** — WeightedSumStrategy 구현 (sign(ρ)·w₁|ρ| + shape/stability placeholder)
+2. **M1 W2 S3** — 골든 회귀 테스트 T-REG-01~05
+3. **M1 W3** — Epic 3 FastAPI + Epic 4 Next.js 초안
 2. **M1 W2** — Epic 2 (유사도 엔진 WeightedSum), 골든 회귀 테스트 GREEN
 3. **M1 W3** — Epic 3 (FastAPI) + Epic 4 초안 (Next.js 기본 탐색)
 4. **M1 W4** — Epic 4 완성 (슬라이더 + KaTeX) + Epic 5 (시각화) + Epic 6 (docker-compose)
