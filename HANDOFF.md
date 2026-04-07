@@ -68,7 +68,7 @@ docker compose up
 ## 3. 현재 진행 상태
 
 ### 현재 브랜치
-`feature/market-data/pipeline-skeleton`
+`feature/similarity/spearman-strategy`
 
 ### 완료 ✅
 
@@ -95,18 +95,21 @@ docker compose up
 | M1 W4 S1 | FastAPI w1/w2/w3 쿼리 + 프론트 슬라이더/KaTeX 플레이그라운드 | ✅ | feature/web/formula-playground |
 | M1 W4 S2 | GET /pair 엔드포인트 + 프론트 산점도/롤링 상관 차트 (recharts) | ✅ | feature/web/formula-playground |
 | M1 W4 S3 | docker-compose (api+web) + ASGI 부트스트랩 + smoke 테스트 | ✅ | feature/web/formula-playground |
+| M1 MVP | M1 전체 완료 (161 테스트 GREEN, import-linter 3 KEPT, L3 로직 0줄) | ✅ | main `0ce031c` |
 
 ### 🔴 블로커
 없음
 
 ### 미완료 (다음 작업 순서) ⏳
 
-1. **M1 마무리** — main 머지, M1 회고, M2 계획
-2. **M2 진입** — 백테스트 엔진, 공적분, 추가 전략(Spearman/DTW), 페이퍼 트레이딩
-3. **M1 W3** — Epic 3 FastAPI + Epic 4 Next.js 초안
-2. **M1 W2** — Epic 2 (유사도 엔진 WeightedSum), 골든 회귀 테스트 GREEN
-3. **M1 W3** — Epic 3 (FastAPI) + Epic 4 초안 (Next.js 기본 탐색)
-4. **M1 W4** — Epic 4 완성 (슬라이더 + KaTeX) + Epic 5 (시각화) + Epic 6 (docker-compose)
+| 우선순위 | 슬라이스 | 설명 | 브랜치 |
+|---------|---------|------|--------|
+| 1 | M2 S1 | `SpearmanStrategy` 포트 구현 + 골든 회귀 테스트 | `feature/similarity/spearman-strategy` (현재) |
+| 2 | M2 S2 | `CointegrationStrategy` (Engle-Granger) 포트 구현 | `feature/similarity/cointegration-strategy` |
+| 3 | M2 S3 | `BacktestEngine` L3 스켈레톤 (포트 정의 + Fake 어댑터) | `feature/backtest/engine-skeleton` |
+
+상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
+M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)
 
 ### 알려진 미해결 이슈 / 주의사항
 
