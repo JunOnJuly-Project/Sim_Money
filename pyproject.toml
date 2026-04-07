@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sim-money"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "finance-datareader>=0.9.96",
+    "pandas>=2.2",
+    "duckdb>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "import-linter>=2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.importlinter]
+root_packages = ["market_data", "universe", "similarity", "portfolio", "signal", "backtest", "trading", "risk"]
+
+[[tool.importlinter.contracts]]
+name = "L2 packages must not import L3 packages"
+type = "forbidden"
+source_modules = ["market_data", "universe", "similarity"]
+forbidden_modules = ["portfolio", "signal", "backtest", "trading", "risk"]
+
+[[tool.importlinter.contracts]]
+name = "market_data domain must not import adapters"
+type = "forbidden"
+source_modules = ["market_data.domain"]
+forbidden_modules = ["market_data.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "universe domain must not import adapters"
+type = "forbidden"
+source_modules = ["universe.domain"]
+forbidden_modules = ["universe.adapters"]

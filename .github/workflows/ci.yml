@@ -7,9 +7,21 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder
-        run: echo "CI 파이프라인은 스택 확정 후 보강한다."
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: pytest
+        run: pytest -q --cov=src --cov-report=term-missing --cov-fail-under=80
+      - name: import-linter (아키텍처 경계)
+        env:
+          PYTHONPATH: src
+        run: lint-imports
