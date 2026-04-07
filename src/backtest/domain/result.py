@@ -21,7 +21,7 @@ class BacktestResult:
     """백테스트 실행 결과 값 객체."""
 
     trades: tuple[Trade, ...]
-    equity_curve: tuple[Decimal, ...]
+    equity_curve: tuple[tuple, ...]
     metrics: PerformanceMetrics
 
     def __post_init__(self) -> None:

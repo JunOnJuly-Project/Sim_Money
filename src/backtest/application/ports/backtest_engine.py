@@ -14,6 +14,6 @@ from typing import Protocol, runtime_checkable
 class BacktestEngine(Protocol):
     """백테스트 실행 엔진 포트."""
 
-    def run(self, signals, price_history):
-        """신호와 가격 이력을 받아 백테스트를 실행하고 결과를 반환한다."""
+    def run(self, signals, price_history, config):
+        """신호·가격 이력·설정을 받아 백테스트를 실행하고 결과를 반환한다."""
         ...
