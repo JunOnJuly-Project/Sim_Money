@@ -4,9 +4,14 @@
 WHY: 총 수익률·샤프 비율·MDD·승률은 모두 비율(ratio) 지표이므로
      이 어댑터에서 일관된 공식으로 계산한다.
      Decimal → float 변환은 이 경계 내부에서만 발생하도록 제한한다.
+
+타입 계약:
+    - equity_curve 의 timestamp 는 반드시 datetime.datetime 이어야 한다.
+    - tz-naive/aware 혼합은 허용하지 않는다. 동일 타입 datetime 만 지원한다.
 """
 from __future__ import annotations
 
+import datetime
 import math
 from decimal import Decimal
 from typing import Sequence
@@ -66,16 +71,21 @@ class RatioPerformanceCalculator:
         WHY: risk_free_rate 를 self 에서 읽어 일별 차감하므로
              동일 인스턴스에서 일관된 무위험 수익률 기준을 유지한다.
              ddof=1 (표본 표준편차) 로 소표본 편향을 줄인다.
+
+        Raises:
+            ValueError: equity_curve 에 0 이하 equity 포인트가 있을 때.
+                        단, 길이 0 또는 1 인 경우는 0.0 반환으로 조기 탈출한다.
         """
         values = [float(v) for _, v in equity_curve]
         if len(values) < 2:
             return 0.0
 
+        _validate_equity_values(values)
+
         daily_rfr = self.risk_free_rate / TRADING_DAYS_PER_YEAR
         returns = [
             (values[i] - values[i - 1]) / values[i - 1]
             for i in range(1, len(values))
-            if values[i - 1] != 0.0
         ]
         excess = [r - daily_rfr for r in returns]
 
@@ -92,11 +102,24 @@ def _validate_intervals(equity_curve: Sequence[tuple]) -> None:
     WHY: 비등간격 데이터에서 단순 일별 공식을 쓰면 샤프가 왜곡되므로
          조용한 오답 대신 명시적 ValueError 로 사용자가 즉시 인지하게 한다.
          포인트 ≤ 1 이면 간격 자체가 없으므로 검증을 건너뛴다.
+
+    타입 계약:
+        - timestamp 는 datetime.datetime 이어야 한다.
+        - tz-naive/aware 혼합은 허용하지 않는다. 동일 타입 datetime 만 지원한다.
+
+    Raises:
+        TypeError: 첫 포인트의 timestamp 가 datetime.datetime 이 아닐 때.
+        ValueError: timestamp 간격이 불균일할 때.
     """
     if len(equity_curve) <= 1:
         return
 
     timestamps = [ts for ts, _ in equity_curve]
+
+    # WHY: 타입 계약 강제 — 잘못된 타입이 조용히 연산되어 오답을 내는 것을 방지한다.
+    if not isinstance(timestamps[0], datetime.datetime):
+        raise TypeError("timestamp 는 datetime.datetime 이어야 합니다")
+
     first_interval = timestamps[1] - timestamps[0]
 
     for i in range(2, len(timestamps)):
@@ -105,6 +128,20 @@ def _validate_intervals(equity_curve: Sequence[tuple]) -> None:
             raise ValueError(
                 f"비등간격 equity_curve: index {i - 1}→{i} 간격 {interval} ≠ 기준 {first_interval}"
             )
+
+
+def _validate_equity_values(values: list[float]) -> None:
+    """equity 값이 모두 양수인지 검증한다.
+
+    WHY: equity 가 0 이하이면 로그 수익률 / 비율 계산이 무의미하거나 오답이 된다.
+         silent skip(if values[i-1] != 0) 대신 명시적 오류로 사용자가 즉시 인지하게 한다.
+
+    Raises:
+        ValueError: 0 이하 equity 포인트가 하나라도 존재할 때.
+    """
+    for v in values:
+        if v <= 0.0:
+            raise ValueError("샤프 계산: equity 가 0 이하인 포인트는 허용되지 않습니다")
 
 
 def _sharpe_from_excess(excess: list[float]) -> float:

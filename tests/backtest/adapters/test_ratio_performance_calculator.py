@@ -467,3 +467,105 @@ class TestRatioPerformanceCalculator_데이터포인트_경계:
         calc = RatioPerformanceCalculator(risk_free_rate=_RFR_5PCT)
         result = calc.compute(trades=[], equity_curve=two_points)
         assert result.sharpe == 0.0
+
+
+# ---------------------------------------------------------------------------
+# R1 리뷰 반영 테스트: equity 0/음수 → ValueError, timestamp 타입 가드
+# ---------------------------------------------------------------------------
+
+class TestRatioPerformanceCalculator_equity_가드:
+    """R1-[중요-1]: equity 0 또는 음수 포인트 → ValueError."""
+
+    def test_equity가_0이면_ValueError를_발생시킨다(self) -> None:
+        """WHY: equity=0 이면 수익률 계산 분모가 0 이 되어 오답이 나온다.
+               silent skip 대신 명시적 오류로 사용자가 즉시 인지해야 한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        equity_with_zero = [
+            (base, Decimal("100")),
+            (base + timedelta(days=1), Decimal("0")),
+            (base + timedelta(days=2), Decimal("110")),
+        ]
+        calc = RatioPerformanceCalculator()
+        with pytest.raises(ValueError, match="equity 가 0 이하인 포인트는 허용되지 않습니다"):
+            calc.compute(trades=[], equity_curve=equity_with_zero)
+
+    def test_equity가_음수이면_ValueError를_발생시킨다(self) -> None:
+        """WHY: equity 가 음수이면 비율 계산 결과가 경제적으로 무의미하다.
+               조용히 넘어가지 않고 명시적 오류를 발생시켜야 한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        equity_with_negative = [
+            (base, Decimal("100")),
+            (base + timedelta(days=1), Decimal("110")),
+            (base + timedelta(days=2), Decimal("-10")),
+        ]
+        calc = RatioPerformanceCalculator()
+        with pytest.raises(ValueError, match="equity 가 0 이하인 포인트는 허용되지 않습니다"):
+            calc.compute(trades=[], equity_curve=equity_with_negative)
+
+    def test_equity_curve가_빈_리스트이면_ValueError_없이_0을_반환한다(self) -> None:
+        """WHY: 빈 입력은 equity 가드 진입 전에 조기 반환하므로 ValueError 가 없어야 한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        calc = RatioPerformanceCalculator()
+        result = calc.compute(trades=[], equity_curve=[])
+        assert result.sharpe == 0.0
+
+    def test_equity_curve가_1개이면_ValueError_없이_0을_반환한다(self) -> None:
+        """WHY: 포인트 1개는 _calc_sharpe 에서 len < 2 로 조기 반환하므로
+               equity 가드가 발동되지 않아야 한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        single = [(base, Decimal("0"))]  # equity=0 이지만 길이 1 이므로 허용
+        calc = RatioPerformanceCalculator()
+        result = calc.compute(trades=[], equity_curve=single)
+        assert result.sharpe == 0.0
+
+
+class TestRatioPerformanceCalculator_timestamp_타입_가드:
+    """R1-[중요-2]: timestamp 가 datetime.datetime 이 아닐 때 → TypeError."""
+
+    def test_timestamp가_int이면_TypeError를_발생시킨다(self) -> None:
+        """WHY: int timestamp 는 빼기 연산이 되지만 의미가 없는 값이 계산된다.
+               타입 계약 강제로 잘못된 입력을 즉시 거부해야 한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        equity_int_ts = [
+            (20240101, Decimal("100")),
+            (20240102, Decimal("110")),
+            (20240103, Decimal("120")),
+        ]
+        calc = RatioPerformanceCalculator()
+        with pytest.raises(TypeError, match="timestamp 는 datetime.datetime 이어야 합니다"):
+            calc.compute(trades=[], equity_curve=equity_int_ts)
+
+    def test_timestamp가_float이면_TypeError를_발생시킨다(self) -> None:
+        """WHY: float 타임스탬프(unix epoch)는 timedelta 연산을 지원하지 않는다.
+               타입 계약 위반을 조기에 탐지해야 한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        equity_float_ts = [
+            (1704067200.0, Decimal("100")),
+            (1704153600.0, Decimal("110")),
+            (1704240000.0, Decimal("120")),
+        ]
+        calc = RatioPerformanceCalculator()
+        with pytest.raises(TypeError, match="timestamp 는 datetime.datetime 이어야 합니다"):
+            calc.compute(trades=[], equity_curve=equity_float_ts)
+
+    def test_tz_aware_datetime_등간격이면_정상_통과한다(self) -> None:
+        """WHY: tz-aware datetime 이 타입 계약을 만족하고 등간격이면 오류 없이 계산돼야 한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        equity_tz_aware = [
+            (base + timedelta(days=i), Decimal(str(100 + i * 5)))
+            for i in range(4)
+        ]
+        calc = RatioPerformanceCalculator()
+        result = calc.compute(trades=[], equity_curve=equity_tz_aware)
+        assert isinstance(result.sharpe, float)
