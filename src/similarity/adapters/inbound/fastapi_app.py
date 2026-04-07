@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Callable, Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel
 
 from backtest.adapters.outbound.in_memory_backtest_engine import InMemoryBacktestEngine
 from backtest.application.ports.position_sizer import PositionSizer
@@ -61,6 +62,9 @@ _MIN_INTERSECTION_SIZE = 2
 _SIZER_STRENGTH = "strength"
 _SIZER_EQUAL_WEIGHT = "equal_weight"
 
+# 리밸런싱 엔드포인트 기본값 상수
+_MIN_TRADE_WEIGHT_DEFAULT = 0.01
+
 # 백테스트 엔드포인트 기본값 상수
 _BACKTEST_DEFAULT_LOOKBACK = 20
 _BACKTEST_DEFAULT_ENTRY = 1.5
@@ -73,6 +77,46 @@ _BACKTEST_DEFAULT_RFR = 0.0
 # 포트폴리오 제약 기본값 — equal_weight 사이저 선택 시에만 의미 있음
 _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT = 1.0
 _BACKTEST_DEFAULT_CASH_BUFFER = 0.0
+
+
+# ── 리밸런싱 요청/응답 DTO ─────────────────────────────────────────────────
+
+class PositionInput(BaseModel):
+    """현재 보유 포지션 입력 DTO."""
+
+    symbol: str
+    quantity: float
+    market_value: float
+
+
+class TargetInput(BaseModel):
+    """목표 비중 입력 DTO."""
+
+    symbol: str
+    weight: float
+
+
+class RebalanceRequest(BaseModel):
+    """POST /portfolio/rebalance 요청 바디."""
+
+    current_positions: list[PositionInput]
+    target_weights: list[TargetInput]
+    total_equity: float
+    min_trade_weight: float = _MIN_TRADE_WEIGHT_DEFAULT
+
+
+class OrderIntentResponse(BaseModel):
+    """단일 주문 의도 응답 DTO."""
+
+    symbol: str
+    delta_weight: float
+    side: Literal["BUY", "SELL"]
+
+
+class RebalanceResponse(BaseModel):
+    """POST /portfolio/rebalance 응답 바디."""
+
+    intents: list[OrderIntentResponse]
 
 
 def create_app(
@@ -278,6 +322,33 @@ def create_app(
         # 9. 응답 직렬화
         return _serialize_backtest_result(a, b, result, trading_signals)
 
+    @app.post("/portfolio/rebalance", response_model=RebalanceResponse)
+    def rebalance_endpoint(req: RebalanceRequest) -> RebalanceResponse:
+        """현재 포지션과 목표 비중을 받아 리밸런싱 주문 계획을 반환한다.
+
+        WHY: PlanRebalance 유스케이스를 HTTP 로 노출하는 얇은 어댑터.
+             도메인 ValueError 는 400 으로 변환하고, 직렬화만 담당한다.
+        """
+        if req.total_equity <= 0:
+            raise HTTPException(status_code=400, detail="total_equity 는 양수여야 합니다.")
+
+        try:
+            current, targets = _to_domain_inputs(req)
+            plan = _execute_plan_rebalance(current, targets, req)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        return RebalanceResponse(
+            intents=[
+                OrderIntentResponse(
+                    symbol=intent.symbol,
+                    delta_weight=float(intent.delta_weight),
+                    side=intent.side,
+                )
+                for intent in plan.intents
+            ]
+        )
+
     return app
 
 
@@ -476,6 +547,49 @@ def _intersect_series(
 def _to_log_returns(prices: list[float]) -> list[float]:
     """연속 가격 리스트로부터 로그수익률 리스트를 계산한다."""
     return [math.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
+
+
+def _to_domain_inputs(
+    req: RebalanceRequest,
+) -> tuple[list, list]:
+    """요청 DTO 를 도메인 값 객체 목록으로 변환한다.
+
+    WHY: float → Decimal 변환 시 str 경유로 부동소수점 오차를 제거한다.
+         도메인 불변식(symbol 비공백, weight 범위) 위반 시 ValueError 를 발생시켜
+         엔드포인트에서 400 으로 변환하도록 위임한다.
+    """
+    from portfolio.domain.position import CurrentPosition
+    from portfolio.domain.weight import TargetWeight
+
+    current = [
+        CurrentPosition(
+            symbol=p.symbol,
+            quantity=Decimal(str(p.quantity)),
+            market_value=Decimal(str(p.market_value)),
+        )
+        for p in req.current_positions
+    ]
+    targets = [
+        TargetWeight(symbol=t.symbol, weight=Decimal(str(t.weight)))
+        for t in req.target_weights
+    ]
+    return current, targets
+
+
+def _execute_plan_rebalance(
+    current: list,
+    targets: list,
+    req: RebalanceRequest,
+) -> object:
+    """PlanRebalance 유스케이스를 실행하고 RebalancePlan 을 반환한다.
+
+    WHY: import 를 함수 내부로 한정해 portfolio 의존이 엔드포인트 정의와
+         분리되도록 한다. 사이드 이펙트 없는 순수 호출 래퍼 역할.
+    """
+    from portfolio.application.use_cases.plan_rebalance import PlanRebalance
+
+    use_case = PlanRebalance(min_trade_weight=Decimal(str(req.min_trade_weight)))
+    return use_case.execute(current, targets, Decimal(str(req.total_equity)))
 
 
 def _compute_rolling_corr(

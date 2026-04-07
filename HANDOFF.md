@@ -112,6 +112,7 @@ docker compose up
 | M3 S4 | backtest ↔ portfolio 통합 — PositionSizer 포트 + StrengthPositionSizer(기본) + PortfolioPositionSizer(WeightingStrategy 래퍼) + InMemoryTradeExecutor 리팩터 + L3↔L3 의존 계약 명문화. 436 GREEN, 10 KEPT | ✅ | feature/backtest/portfolio-integration |
 | M3 S5 | sizer 선택 API/UI — /backtest/pair `sizer=strength\|equal_weight` 쿼리 + 대시보드 토글 + _calc_quantity 매개변수명 리팩터 + 비제로 비용 회귀 테스트. 438 GREEN, 10 KEPT | ✅ | feature/api/sizer-selection |
 | M3 S6 | ADR-005 L3 수평 의존 정책 + /backtest/pair max_position_weight/cash_buffer 쿼리 + UI 조건부 제약 입력 블록. 441 GREEN, 10 KEPT | ✅ | feature/api/portfolio-constraints |
+| M3 S7 | POST /portfolio/rebalance — PlanRebalance 유스케이스 HTTP 노출 + 7 테스트 GREEN, 10 KEPT | ✅ | feature/api/portfolio-rebalance |
 
 ### 🔴 블로커
 없음
