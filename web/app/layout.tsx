@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+// WHY: KaTeX 수식 렌더를 위해 전역 CSS를 루트 레이아웃에서 한 번만 로드한다.
+import "katex/dist/katex.min.css";
 
 export const metadata: Metadata = {
   title: "Sim Money — 유사 종목 탐색기",
