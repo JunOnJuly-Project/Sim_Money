@@ -16,9 +16,13 @@ interface BacktestForm {
   initial: number;
   fee: number;
   slippage: number;
+  rfr: number;
 }
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
+
+// 무위험 수익률 최대값 — 현실적 연환산 상한선
+const RFR_MAX = 0.2;
 
 const DEFAULT_FORM: BacktestForm = {
   a: "",
@@ -29,6 +33,7 @@ const DEFAULT_FORM: BacktestForm = {
   initial: 10000,
   fee: 0.001,
   slippage: 5.0,
+  rfr: 0.0,
 };
 
 // ── 서브 컴포넌트: 고지 배너 ──────────────────────────────────────────────
@@ -56,10 +61,11 @@ interface NumberInputRowProps {
   value: number;
   step?: number;
   min?: number;
+  max?: number;
   onChange: (v: number) => void;
 }
 
-function NumberInputRow({ label, value, step = 1, min = 0, onChange }: NumberInputRowProps) {
+function NumberInputRow({ label, value, step = 1, min = 0, max, onChange }: NumberInputRowProps) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
@@ -69,6 +75,7 @@ function NumberInputRow({ label, value, step = 1, min = 0, onChange }: NumberInp
         type="number"
         step={step}
         min={min}
+        max={max}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="rounded-md border px-3 py-2 text-sm"
@@ -192,6 +199,18 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
         />
       </div>
 
+      {/* 무위험 수익률 — Sharpe 비율 계산 기준선 */}
+      <div className="grid grid-cols-3 gap-3">
+        <NumberInputRow
+          label="무위험 수익률 (연환산)"
+          value={form.rfr}
+          step={0.01}
+          min={0}
+          max={RFR_MAX}
+          onChange={(v) => onChange({ rfr: v })}
+        />
+      </div>
+
       <button
         type="submit"
         disabled={isLoading}
@@ -220,6 +239,7 @@ function buildBacktestUrl(form: BacktestForm): string {
     initial: String(form.initial),
     fee: String(form.fee),
     slippage: String(form.slippage),
+    rfr: String(form.rfr),
   });
   return `/api/backtest/pair/${encodeURIComponent(form.a)}/${encodeURIComponent(form.b)}?${params}`;
 }

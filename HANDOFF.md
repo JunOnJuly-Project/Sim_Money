@@ -107,6 +107,7 @@ docker compose up
 | M2 MVP | M2 전체 완료 (342 테스트 GREEN, 7 import-linter KEPT, backtest 97% / trading_signal 99% 커버리지) | ✅ | main |
 | infra | docker compose 부트스트랩 픽스 (Dockerfile.api 순서, next.config 프록시 분리, 시드 10종 확장) | ✅ | main `b045b6d` |
 | M3 S1 | RatioPerformanceCalculator Sharpe 정식 구현 — risk_free_rate, 등간격 검증, ddof=1 표본 표준편차, equity≤0 가드, timestamp 타입 가드 (363 GREEN, 7 KEPT) | ✅ | feature/backtest/sharpe-formal |
+| M3 S2 | risk_free_rate 끝단 노출 — BacktestConfig 필드/불변식, RunBacktest→PerformanceCalculator 전달, /backtest/pair rfr 쿼리, 대시보드 입력 필드 (372 GREEN, 7 KEPT) | ✅ | feature/backtest/risk-free-rate-config |
 
 ### 🔴 블로커
 없음

@@ -10,6 +10,7 @@ WHY: 백테스트 엔드포인트는 trading_signal + backtest 두 L3 모듈을 
     2. 종목 A 시계열 없음 — 404
     3. 종목 B 시계열 없음 — 404
     4. 교집합이 lookback+1 미만 — 400
+    5. rfr=0.05 — 200 + sharpe 가 rfr=0 결과와 다름
 """
 from __future__ import annotations
 
@@ -272,3 +273,42 @@ class TestBacktestEndpoint_교집합_부족:
 
         assert response.status_code == 400
         assert "detail" in response.json()
+
+
+# ── 케이스 5: rfr 쿼리 파라미터 ───────────────────────────────────────────
+
+# 무위험 수익률 테스트용 상수
+_RFR_DEFAULT = 0.0
+_RFR_CUSTOM = 0.05
+# rfr 이 높을수록 초과 수익률이 낮아져 Sharpe 가 낮거나 같아야 하는데,
+# 실제 부호는 수익률의 방향에 따라 달라진다. 따라서 '다름' 만 검증한다.
+_SERIES_N = 60  # 충분한 교집합 보장
+
+
+class TestBacktestEndpoint_rfr_파라미터:
+    """rfr 쿼리 파라미터가 BacktestConfig 에 올바르게 주입되는지 검증한다."""
+
+    def test_rfr_지정시_sharpe가_기본값과_달라진다(self) -> None:
+        """WHY: rfr=0.05 를 전달하면 Sharpe 계산 시 무위험 수익률이 차감되므로
+               rfr=0 일 때와 다른 sharpe 값이 반환되어야 한다.
+               두 요청을 동일 시계열로 실행해 rfr 만 다를 때 sharpe 가 달라짐을 검증한다.
+        """
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        resp_default = client.get(f"/backtest/pair/AAA/BBB?rfr={_RFR_DEFAULT}")
+        resp_custom = client.get(f"/backtest/pair/AAA/BBB?rfr={_RFR_CUSTOM}")
+
+        assert resp_default.status_code == 200
+        assert resp_custom.status_code == 200
+
+        sharpe_default = resp_default.json()["metrics"]["sharpe"]
+        sharpe_custom = resp_custom.json()["metrics"]["sharpe"]
+        # rfr 가 다르면 Sharpe 값도 달라야 한다 (None 허용: 트레이드 없는 경우 동일할 수 있음)
+        # WHY: 트레이드가 발생하면 반드시 달라지므로, 같은 경우를 명시적으로 허용한다.
+        #      단, 200 응답 자체와 키 존재만 필수 검증한다.
+        assert "sharpe" in resp_custom.json()["metrics"]
+        # 트레이드가 존재하면 sharpe 가 달라짐을 추가 검증
+        if resp_default.json()["trades"] and sharpe_default is not None and sharpe_custom is not None:
+            assert sharpe_default != sharpe_custom

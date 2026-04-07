@@ -282,3 +282,68 @@ class TestGoldenCase3_멀티_티커:
 
         total_pnl = sum(t.pnl for t in result.trades)
         assert total_pnl > Decimal("0")
+
+
+class TestGoldenCase4_risk_free_rate_반영:
+    """Case 4: risk_free_rate=0 vs rfr=0.05 → 샤프 비율 차이 확인."""
+
+    def _build_config(self, rfr: str) -> BacktestConfig:
+        return BacktestConfig(
+            initial_capital=Decimal("10000"),
+            fee_rate=Decimal("0"),
+            slippage_bps=Decimal("0"),
+            risk_free_rate=Decimal(rfr),
+        )
+
+    def _run_with_rfr(self, rfr: str):
+        """WHY: 동일 시장 데이터에 rfr 만 다르게 주입해 샤프 차이를 검증한다.
+               equity_curve 포인트가 3개 이상 있어야 excess 리스트 길이 >= 2 가 되어
+               ddof=1 표본 표준편차 계산이 가능하다. LONG 진입 후 중간 EXIT+재진입으로
+               equity_curve 포인트를 충분히 확보한다.
+        """
+        from backtest.adapters.outbound.in_memory_backtest_engine import InMemoryBacktestEngine
+        engine = InMemoryBacktestEngine()
+
+        # 4-bar 시계열: LONG t1 → EXIT t2 → LONG t3 → EXIT t4
+        # → equity_curve: t1(초기), t2(EXIT 후), t3(재진입), t4(EXIT 후)
+        # excess 리스트 길이 = 3 → ddof=1 계산 가능
+        t = [_utc(2024, 1, d) for d in range(1, 5)]
+        prices = ["100", "110", "110", "120"]
+        signals = [
+            Signal(timestamp=t[0], ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t[1], ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
+            Signal(timestamp=t[2], ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t[3], ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
+        ]
+        price_history = {
+            "AAPL": [_bar("AAPL", close=p, ts=ts) for ts, p in zip(t, prices)]
+        }
+
+        return engine.run(
+            signals=signals,
+            price_history=price_history,
+            config=self._build_config(rfr),
+        )
+
+    def test_rfr_0과_rfr_005의_샤프가_다르다(self) -> None:
+        """WHY: rfr 이 BacktestConfig → RatioPerformanceCalculator 로 전달되어야
+               초과수익률 계산에 반영된다. rfr=0 과 rfr=0.05 의 샤프가 달라야 한다.
+        """
+        result_zero = self._run_with_rfr("0")
+        result_rfr = self._run_with_rfr("0.05")
+
+        # rfr 이 높을수록 초과수익률이 낮아져 샤프 비율이 낮아진다
+        assert result_rfr.metrics.sharpe < result_zero.metrics.sharpe
+
+    def test_rfr_005이면_샤프가_rfr_0보다_작다(self) -> None:
+        """WHY: 단조 상승 시계열에서 rfr 추가 시 초과수익률이 줄어 샤프가 감소한다."""
+        result_zero = self._run_with_rfr("0")
+        result_rfr = self._run_with_rfr("0.05")
+
+        sharpe_zero = result_zero.metrics.sharpe
+        sharpe_rfr = result_rfr.metrics.sharpe
+
+        assert isinstance(sharpe_zero, float)
+        assert isinstance(sharpe_rfr, float)
+        # rfr 적용 시 샤프가 0 방향으로 이동해야 한다
+        assert sharpe_rfr < sharpe_zero

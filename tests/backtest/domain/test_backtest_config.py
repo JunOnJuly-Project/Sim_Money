@@ -95,3 +95,65 @@ class TestBacktestConfigInvalid:
                 fee_rate=Decimal("0.001"),
                 slippage_bps=Decimal("-1"),
             )
+
+    def test_risk_free_rate가_음수이면_예외가_발생한다(self) -> None:
+        """WHY: 음수 무위험수익률은 경제적으로 무의미하므로 생성 시점에 차단한다."""
+        with pytest.raises(ValueError, match="risk_free_rate"):
+            BacktestConfig(
+                initial_capital=Decimal("1000000"),
+                fee_rate=Decimal("0.001"),
+                slippage_bps=Decimal("5"),
+                risk_free_rate=Decimal("-0.01"),
+            )
+
+    def test_risk_free_rate가_1_초과이면_예외가_발생한다(self) -> None:
+        """WHY: 무위험수익률이 100% 를 넘는 것은 현실 불가 값이므로 차단한다."""
+        with pytest.raises(ValueError, match="risk_free_rate"):
+            BacktestConfig(
+                initial_capital=Decimal("1000000"),
+                fee_rate=Decimal("0.001"),
+                slippage_bps=Decimal("5"),
+                risk_free_rate=Decimal("1.01"),
+            )
+
+
+class TestBacktestConfigRiskFreeRateValid:
+    """risk_free_rate 정상 케이스."""
+
+    def test_risk_free_rate_기본값은_0이다(self) -> None:
+        """WHY: 기존 호출부가 risk_free_rate 를 생략해도 0 으로 동작해야 한다."""
+        config = BacktestConfig(
+            initial_capital=Decimal("1000000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal("5"),
+        )
+        assert config.risk_free_rate == Decimal("0")
+
+    def test_risk_free_rate_0_은_허용된다(self) -> None:
+        config = BacktestConfig(
+            initial_capital=Decimal("1000000"),
+            fee_rate=Decimal("0"),
+            slippage_bps=Decimal("0"),
+            risk_free_rate=Decimal("0"),
+        )
+        assert config.risk_free_rate == Decimal("0")
+
+    def test_risk_free_rate_1_은_허용된다(self) -> None:
+        """WHY: 상한 경계값(100%)은 허용 범위에 포함된다."""
+        config = BacktestConfig(
+            initial_capital=Decimal("1000000"),
+            fee_rate=Decimal("0"),
+            slippage_bps=Decimal("0"),
+            risk_free_rate=Decimal("1"),
+        )
+        assert config.risk_free_rate == Decimal("1")
+
+    def test_risk_free_rate_0_05_는_허용된다(self) -> None:
+        """WHY: 일반적인 무위험수익률(5%)이 정상 생성되는지 확인한다."""
+        config = BacktestConfig(
+            initial_capital=Decimal("1000000"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=Decimal("5"),
+            risk_free_rate=Decimal("0.05"),
+        )
+        assert config.risk_free_rate == Decimal("0.05")

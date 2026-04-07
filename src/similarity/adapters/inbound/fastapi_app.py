@@ -63,6 +63,8 @@ _BACKTEST_DEFAULT_EXIT = 0.5
 _BACKTEST_DEFAULT_INITIAL = 10_000.0
 _BACKTEST_DEFAULT_FEE = 0.001
 _BACKTEST_DEFAULT_SLIPPAGE = 5.0
+# 무위험 수익률 기본값 — 연환산 비율 (0 = 무위험 수익 없음)
+_BACKTEST_DEFAULT_RFR = 0.0
 
 
 def create_app(
@@ -178,6 +180,7 @@ def create_app(
         initial: float = Query(_BACKTEST_DEFAULT_INITIAL),
         fee: float = Query(_BACKTEST_DEFAULT_FEE),
         slippage: float = Query(_BACKTEST_DEFAULT_SLIPPAGE),
+        rfr: float = Query(_BACKTEST_DEFAULT_RFR, ge=0.0, le=1.0, description="연환산 무위험 수익률"),
     ) -> dict:
         """페어 백테스트를 실행하고 결과를 반환한다.
 
@@ -232,11 +235,12 @@ def create_app(
         # 6. price_history 구성 — PriceBar 로 변환
         price_history = _build_price_history(a, b, timestamps, prices_a, prices_b)
 
-        # 7. BacktestConfig 생성
+        # 7. BacktestConfig 생성 — rfr 은 Sharpe 비율 분모에 사용되므로 Decimal 로 변환
         config = BacktestConfig(
             initial_capital=Decimal(str(initial)),
             fee_rate=Decimal(str(fee)),
             slippage_bps=Decimal(str(slippage)),
+            risk_free_rate=Decimal(str(rfr)),
         )
 
         # 8. InMemoryBacktestEngine 실행
