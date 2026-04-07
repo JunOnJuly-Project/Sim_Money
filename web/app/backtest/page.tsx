@@ -6,6 +6,9 @@ import BacktestResult, { BacktestResponse } from "./BacktestResult";
 
 // ── 타입 정의 ──────────────────────────────────────────────────────────────
 
+/** 포지션 사이징 방식 선택지 */
+type SizerType = "strength" | "equal_weight";
+
 /** 백테스트 폼 입력 상태 */
 interface BacktestForm {
   a: string;
@@ -17,6 +20,7 @@ interface BacktestForm {
   fee: number;
   slippage: number;
   rfr: number;
+  sizer: SizerType;
 }
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
@@ -34,6 +38,7 @@ const DEFAULT_FORM: BacktestForm = {
   fee: 0.001,
   slippage: 5.0,
   rfr: 0.0,
+  sizer: "strength",
 };
 
 // ── 서브 컴포넌트: 고지 배너 ──────────────────────────────────────────────
@@ -199,7 +204,7 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
         />
       </div>
 
-      {/* 무위험 수익률 — Sharpe 비율 계산 기준선 */}
+      {/* 무위험 수익률 + 사이징 방식 — 같은 행에 배치 */}
       <div className="grid grid-cols-3 gap-3">
         <NumberInputRow
           label="무위험 수익률 (연환산)"
@@ -209,6 +214,26 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
           max={RFR_MAX}
           onChange={(v) => onChange({ rfr: v })}
         />
+        {/* WHY: 사이징 방식은 포지션 비중 계산 전략을 선택한다.
+                 strength=신호 강도 비례(기본), equal_weight=균등 비중 */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+            사이징 방식
+          </label>
+          <select
+            value={form.sizer}
+            onChange={(e) => onChange({ sizer: e.target.value as SizerType })}
+            className="rounded-md border px-3 py-2 text-sm"
+            style={{
+              backgroundColor: "var(--card-bg)",
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+            }}
+          >
+            <option value="strength">신호 강도 비례 (strength)</option>
+            <option value="equal_weight">균등 비중 (equal_weight)</option>
+          </select>
+        </div>
       </div>
 
       <button
@@ -240,6 +265,7 @@ function buildBacktestUrl(form: BacktestForm): string {
     fee: String(form.fee),
     slippage: String(form.slippage),
     rfr: String(form.rfr),
+    sizer: form.sizer,
   });
   return `/api/backtest/pair/${encodeURIComponent(form.a)}/${encodeURIComponent(form.b)}?${params}`;
 }

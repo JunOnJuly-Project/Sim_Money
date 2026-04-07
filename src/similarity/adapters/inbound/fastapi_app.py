@@ -13,11 +13,12 @@ from __future__ import annotations
 import math
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Callable
+from typing import Callable, Literal
 
 from fastapi import FastAPI, HTTPException, Query
 
 from backtest.adapters.outbound.in_memory_backtest_engine import InMemoryBacktestEngine
+from backtest.application.ports.position_sizer import PositionSizer
 from backtest.domain.backtest_config import BacktestConfig
 from backtest.domain.price_bar import PriceBar
 from market_data.application.ports import PriceRepository
@@ -55,6 +56,10 @@ _PAIR_ROLLING_WINDOW = 20
 
 # 교집합 계산에 필요한 최소 날짜 수 (log_returns 가 1개 이상이려면 최소 2개 필요)
 _MIN_INTERSECTION_SIZE = 2
+
+# PositionSizer 선택 리터럴 타입 — 확장 시 여기에 추가
+_SIZER_STRENGTH = "strength"
+_SIZER_EQUAL_WEIGHT = "equal_weight"
 
 # 백테스트 엔드포인트 기본값 상수
 _BACKTEST_DEFAULT_LOOKBACK = 20
@@ -181,6 +186,9 @@ def create_app(
         fee: float = Query(_BACKTEST_DEFAULT_FEE),
         slippage: float = Query(_BACKTEST_DEFAULT_SLIPPAGE),
         rfr: float = Query(_BACKTEST_DEFAULT_RFR, ge=0.0, le=1.0, description="연환산 무위험 수익률"),
+        sizer: Literal["strength", "equal_weight"] = Query(
+            _SIZER_STRENGTH, description="포지션 사이징 방식 (strength: 신호 강도 비례, equal_weight: 균등 비중)"
+        ),
     ) -> dict:
         """페어 백테스트를 실행하고 결과를 반환한다.
 
@@ -243,14 +251,40 @@ def create_app(
             risk_free_rate=Decimal(str(rfr)),
         )
 
-        # 8. InMemoryBacktestEngine 실행
-        engine = InMemoryBacktestEngine()
+        # 8. InMemoryBacktestEngine 실행 — 선택된 사이저 주입
+        from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
+        sizer_instance = _build_sizer(sizer)
+        executor = InMemoryTradeExecutor(sizer=sizer_instance) if sizer_instance else InMemoryTradeExecutor()
+        engine = InMemoryBacktestEngine(trade_executor=executor)
         result = engine.run(backtest_signals, price_history, config)
 
         # 9. 응답 직렬화
         return _serialize_backtest_result(a, b, result, trading_signals)
 
     return app
+
+
+def _build_sizer(sizer_name: str) -> PositionSizer | None:
+    """사이저 이름으로 PositionSizer 인스턴스를 생성한다.
+
+    WHY: 조립 루트(어댑터)에서만 L3 모듈 간 조립을 허용한다.
+         equal_weight 선택 시 portfolio L3 모듈을 import 해 조립하고,
+         strength(기본값)는 None 을 반환해 InMemoryTradeExecutor 기본값을 사용한다.
+         import 를 함수 내부로 한정해 strength 선택 시 portfolio 의존을 제거한다.
+
+    Args:
+        sizer_name: "strength" 또는 "equal_weight"
+
+    Returns:
+        PositionSizer 인스턴스, 또는 기본값 사용 시 None
+    """
+    if sizer_name == _SIZER_EQUAL_WEIGHT:
+        from portfolio.adapters.outbound.equal_weight_strategy import EqualWeightStrategy
+        from portfolio.domain.constraints import PortfolioConstraints
+        from backtest.adapters.outbound.portfolio_position_sizer import PortfolioPositionSizer
+        return PortfolioPositionSizer(EqualWeightStrategy(), PortfolioConstraints())
+    # strength: 기본 StrengthPositionSizer 사용 — None 반환으로 기존 동작 유지
+    return None
 
 
 def _resolve_tickers(a: str, b: str) -> tuple[Ticker, Ticker]:
