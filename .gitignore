@@ -13,6 +13,8 @@ venv/
 *.log
 .cache/
 data/raw/
+data/*.duckdb
+data/*.duckdb.wal
 
 # Claude Code 로컬 세션 데이터
 .claude/
