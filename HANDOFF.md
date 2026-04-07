@@ -101,7 +101,8 @@ docker compose up
 | M2 S3 | backtest L3 스켈레톤 — 도메인 값 객체/포트 Protocol/어댑터 스텁 (246 GREEN) | ✅ | main |
 | M2 S4 | backtest L3 실구현 — BacktestConfig/RunBacktest 이벤트 루프/TradeExecutor/PerformanceCalculator/Engine 조립 (294 GREEN, backtest 커버리지 97%, import-linter 5 KEPT) | ✅ | feature/backtest/engine-impl |
 | M2 S4 리뷰 R1 | 중복 LONG 드랍(seen 세트), equity_curve mark-to-market (current close), 타입 힌트 정밀화, _calc_sharpe M2 한정 단순화 docstring (96 GREEN, 97%, 5 KEPT) | ✅ | main |
-| M2 S4.5 | ADR-003 + Signal.strength float→Decimal 마이그레이션 + Sharpe docstring 보강 (295 GREEN, 97%, 5 KEPT) | ✅ | feature/backtest/decimal-strength-sharpe |
+| M2 S4.5 | ADR-003 + Signal.strength float→Decimal 마이그레이션 + Sharpe docstring 보강 (295 GREEN, 97%, 5 KEPT) | ✅ | main |
+| M2 S5 | trading_signal L3 패키지 활성화 — Pair/ZScore/TradingSignal 도메인 + GeneratePairSignals 유스케이스 + PairTradingSignalSource 어댑터. stdlib `signal` 충돌 회피 위해 `trading_signal` 로 리네임. 335 GREEN, 커버리지 99%, 7 KEPT (trading_signal layers + purity 추가) | ✅ | feature/signal/pair-trading-source |
 
 ### 🔴 블로커
 없음
@@ -114,9 +115,9 @@ docker compose up
 | ✅ | M2 S2 | `CointegrationStrategy` (Engle-Granger, numpy-only ADF) | 완료 (`043d609`) |
 | ✅ | M2 S3 | `backtest` L3 스켈레톤 (main `bf74ef6`) | 완료 |
 | ✅ | M2 S4 | `backtest` L3 실구현 (main `e203650`) | 완료 |
-| ✅ | M2 S4.5 | ADR-003 + Signal.strength Decimal 마이그레이션 + Sharpe 보강 | `feature/backtest/decimal-strength-sharpe` (현재) |
-| 1 | M2 S5 | SignalSource 구체 구현 (PairTradingSignalSource, similarity → Signal) | `feature/signal/pair-trading-source` |
-| 2 | M2 S6 | 백테스트 웹 대시보드 UI (equity_curve/trades/metrics 시각화) | `feature/web/backtest-dashboard` |
+| ✅ | M2 S4.5 | ADR-003 + Signal.strength Decimal 마이그레이션 (main `1b12aa2`) | 완료 |
+| ✅ | M2 S5 | trading_signal L3 — PairTradingSignalSource (335 GREEN, 99%, 7 KEPT) | `feature/signal/pair-trading-source` (현재) |
+| 1 | M2 S6 | 백테스트 웹 대시보드 UI (equity_curve/trades/metrics 시각화, FastAPI /backtest 엔드포인트) | `feature/web/backtest-dashboard` |
 | 이월 | M3 | Sharpe 정식 구현 (무위험수익률, 등간격 보장) | M3 |
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
@@ -138,7 +139,7 @@ M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)
 ## 4. 방법론 강제 규칙
 
 ### 도메인 엄격도 (ADR-001 참조)
-- **L3** (`portfolio`, `signal`, `backtest`, `trading`, `risk`):
+- **L3** (`portfolio`, `trading_signal`, `backtest`, `trading`, `risk`):
   - M1 은 **스켈레톤만**. 로직 0.
   - 로직 추가 순간 L3 엄격도 즉시 발동 — 90% 커버리지, ArchUnit, 단일 에이전트 금지.
 - **L2** (`similarity`, `market_data`, `universe`):
