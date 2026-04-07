@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     environment:
       DUCKDB_PATH: /data/sim_money.duckdb
-      # SEED_TICKERS: KRX:005930,KRX:000660  # 기본값 사용 시 주석 해제 불필요
+      SEED_TICKERS: KRX:005930,KRX:000660,KRX:035420,KRX:051910,KRX:005380,KRX:068270,KRX:207940,KRX:005490,KRX:000270,KRX:105560
     volumes:
       # WHY: ./data 를 마운트해 컨테이너 재시작 후에도 DuckDB 파일이 유지된다.
       - ./data:/data
@@ -22,5 +22,7 @@ services:
       # WHY: 브라우저는 host machine 에서 동작하므로 localhost:8000 으로 직접 접근한다.
       #      컨테이너 내부 통신(SSR 등)이 필요하면 http://api:8000 으로 변경한다.
       NEXT_PUBLIC_API_BASE: http://localhost:8000
+      # WHY: next.config rewrites 는 web 컨테이너 내부에서 실행되므로 service DNS 사용
+      API_PROXY_TARGET: http://api:8000
     depends_on:
       - api
