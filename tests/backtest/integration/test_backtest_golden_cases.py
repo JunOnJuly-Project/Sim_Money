@@ -7,7 +7,7 @@ WHY: 어댑터와 유스케이스가 조립된 상태에서 수기 계산 결과
 
 골든 케이스 기준:
     Case 1: 2-bar LONG→EXIT, fee=0, slippage=0
-            initial=10000, close=100→110, strength=1.0
+            initial=10000, close=100→110, strength=Decimal("1.0")
             → qty=100, pnl=1000
 
     Case 2: fee=0.001, slippage=5bps 반영
@@ -77,8 +77,8 @@ class TestGoldenCase1_기본_LONG_EXIT:
             slippage_bps=Decimal("0"),
         )
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [
@@ -112,8 +112,8 @@ class TestGoldenCase1_기본_LONG_EXIT:
             slippage_bps=Decimal("0"),
         )
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [
@@ -161,8 +161,8 @@ class TestGoldenCase2_fee_slippage:
             slippage_bps=Decimal("5"),
         )
         signals = [
-            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=1.0),
-            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=1.0),
+            Signal(timestamp=t1, ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t2, ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
         ]
         price_history = {
             "AAPL": [
@@ -221,8 +221,8 @@ class TestGoldenCase3_멀티_티커:
         signals = []
         price_history: dict = {}
         for ticker in tickers:
-            signals.append(Signal(timestamp=t1, ticker=ticker, side=Side.LONG, strength=1.0))
-            signals.append(Signal(timestamp=t2, ticker=ticker, side=Side.EXIT, strength=1.0))
+            signals.append(Signal(timestamp=t1, ticker=ticker, side=Side.LONG, strength=Decimal("1.0")))
+            signals.append(Signal(timestamp=t2, ticker=ticker, side=Side.EXIT, strength=Decimal("1.0")))
             price_history[ticker] = [
                 _bar(ticker, close=close_entry[ticker], ts=t1),
                 _bar(ticker, close=close_exit[ticker], ts=t2),
@@ -267,8 +267,8 @@ class TestGoldenCase3_멀티_티커:
         signals = []
         price_history: dict = {}
         for ticker in tickers:
-            signals.append(Signal(timestamp=t1, ticker=ticker, side=Side.LONG, strength=1.0))
-            signals.append(Signal(timestamp=t2, ticker=ticker, side=Side.EXIT, strength=1.0))
+            signals.append(Signal(timestamp=t1, ticker=ticker, side=Side.LONG, strength=Decimal("1.0")))
+            signals.append(Signal(timestamp=t2, ticker=ticker, side=Side.EXIT, strength=Decimal("1.0")))
             price_history[ticker] = [
                 _bar(ticker, close=close_entry[ticker], ts=t1),
                 _bar(ticker, close=close_exit[ticker], ts=t2),
