@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 dependencies = [
     "finance-datareader>=0.9.96",
     "pandas>=2.2",
+    "duckdb>=1.0",
 ]
 
 [project.optional-dependencies]

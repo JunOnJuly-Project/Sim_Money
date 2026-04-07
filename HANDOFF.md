@@ -80,14 +80,15 @@ docker compose up
 | M1 W1 S2 | PriceSeries 애그리거트 (불변식, log_returns, is_sufficient) | ✅ | feature/market-data/pipeline-skeleton |
 | M1 W1 S3 | IngestPrices 유스케이스 + MarketDataSource/PriceRepository 포트 (헥사고날) | ✅ | feature/market-data/pipeline-skeleton |
 | M1 W1 S4 | FinanceDataReaderSource 어댑터 (lazy import, FakeReader 격리) | ✅ | feature/market-data/pipeline-skeleton |
+| M1 W1 S5 | DuckDBPriceRepository 어댑터 (멱등 INSERT OR REPLACE, in-memory 테스트) | ✅ | feature/market-data/pipeline-skeleton |
 
 ### 🔴 블로커
 없음
 
 ### 미완료 (다음 작업 순서) ⏳
 
-1. **M1 W1 S5** — DuckDB 리포지토리 (PriceRepository 구현)
-2. **M1 W1 S6** — Universe 도메인 + 스냅샷 유스케이스 (KOSPI200 + S&P500)
+1. **M1 W1 S6** — Universe 도메인 + 스냅샷 유스케이스 (KOSPI200 + S&P500)
+2. **M1 W2** — Epic 2: similarity 엔진 (WeightedSumStrategy) + 골든 회귀
 2. **M1 W2** — Epic 2 (유사도 엔진 WeightedSum), 골든 회귀 테스트 GREEN
 3. **M1 W3** — Epic 3 (FastAPI) + Epic 4 초안 (Next.js 기본 탐색)
 4. **M1 W4** — Epic 4 완성 (슬라이더 + KaTeX) + Epic 5 (시각화) + Epic 6 (docker-compose)
