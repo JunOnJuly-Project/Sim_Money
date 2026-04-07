@@ -36,6 +36,7 @@ source = ["src"]
 
 [tool.importlinter]
 root_packages = ["market_data", "universe", "similarity", "portfolio", "signal", "backtest", "trading", "risk"]
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "L2 packages must not import L3 packages"
@@ -54,3 +55,19 @@ name = "universe domain must not import adapters"
 type = "forbidden"
 source_modules = ["universe.domain"]
 forbidden_modules = ["universe.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "backtest hexagonal layers"
+type = "layers"
+layers = [
+    "backtest.adapters",
+    "backtest.application",
+    "backtest.domain",
+]
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "backtest domain/application purity (no pandas/numpy)"
+type = "forbidden"
+source_modules = ["backtest.domain", "backtest.application"]
+forbidden_modules = ["pandas", "numpy"]
