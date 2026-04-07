@@ -48,13 +48,20 @@ similarity/
 score(A,B) = sign(ρ_p) · ( w₁·|ρ_p| + w₂·shape + w₃·stability )
 
 ρ_p       = pearson(logret_A, logret_B)
-shape     = clip(1 − std(rolling_corr_W), 0, 1)    # 기본 W=60
-stability = clip(1 − 2·std(ρ_k), 0, 1)             # 기본 k=3
+shape     = |cosine_similarity(logret_A, logret_B)|          # M1 단순화
+stability = clip(1 − 2·std(rolling_corr_W), 0, 1)            # M1 기본 W=20, N<W 면 0
 
-기본 가중치: w₁/w₂/w₃ = 0.5/0.3/0.2 (합=1 자동 정규화)
+기본 가중치: w₁/w₂/w₃ = 0.5/0.3/0.2 (합=1 엄격 검증, 허용오차 1e-6)
 필터: |ρ_p| ≥ 0.1, TopK(ρ_p,150) ∪ BottomK(ρ_p,150)
 전처리: N≥252, σ≥1e-6, NaN>5% 제외, NaN/Inf 가드, sign(0)→+1
 ```
+
+#### M1 단순화 사유 (갱신: 2026-04-07)
+- `shape` 를 코사인 유사도로 치환: M1 범위에서는 "벡터 방향성" 이 직관적이고
+  O(N) 비용으로 구현 가능. 원안(rolling std) 은 stability 와 측정 축이 겹쳐 중복 리스크가 있었음.
+- `stability` 윈도우를 60 → 20 으로 축소: M1 골든 데이터셋(N≈252) 에서 60 은 관측수 대비 과도.
+  Phase 2 에서 백테스트 기반으로 재조정 예정.
+- 이 단순화는 Phase 2 재평가 대상이며, 별도 전략(`CosineShapeStrategy` 등) 으로 분리 가능.
 
 ## 결과
 
