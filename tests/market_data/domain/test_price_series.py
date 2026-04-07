@@ -167,14 +167,7 @@ class TestPriceSeries_latest_date:
 
 class TestPriceSeries_is_sufficient:
     def test_가격_개수가_252_이상이면_True_를_반환한다(self):
-        base = date(2024, 1, 1)
-        pairs = tuple(
-            (date(2024, 1, 1).replace(day=1) if i == 0
-             else date(2020 + i // 365, 1 + (i % 365) // 31, 1 + (i % 31)),
-             100.0 + i)
-            for i in range(252)
-        )
-        # 날짜 정렬 보장을 위해 단순 연속 정수 날짜 생성
+        # WHY: timedelta 기반으로 연속 날짜를 생성해 오름차순 불변식을 안전하게 충족한다.
         from datetime import timedelta
         start = date(2023, 1, 1)
         dates_and_prices = tuple(
