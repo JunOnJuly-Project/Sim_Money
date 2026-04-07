@@ -68,7 +68,7 @@ docker compose up
 ## 3. 현재 진행 상태
 
 ### 현재 브랜치
-`feature/similarity/spearman-strategy`
+`feature/similarity/cointegration-strategy`
 
 ### 완료 ✅
 
@@ -104,9 +104,9 @@ docker compose up
 
 | 우선순위 | 슬라이스 | 설명 | 브랜치 |
 |---------|---------|------|--------|
-| 1 | M2 S1 | `SpearmanStrategy` 포트 구현 + 골든 회귀 테스트 | `feature/similarity/spearman-strategy` (현재) |
-| 2 | M2 S2 | `CointegrationStrategy` (Engle-Granger) 포트 구현 | `feature/similarity/cointegration-strategy` |
-| 3 | M2 S3 | `BacktestEngine` L3 스켈레톤 (포트 정의 + Fake 어댑터) | `feature/backtest/engine-skeleton` |
+| ✅ | M2 S1 | `SpearmanStrategy` (main `bbeff9c`) | 완료 |
+| ✅ | M2 S2 | `CointegrationStrategy` (Engle-Granger, numpy-only ADF) | `feature/similarity/cointegration-strategy` (현재) |
+| 1 | M2 S3 | `BacktestEngine` L3 스켈레톤 (포트 정의 + Fake 어댑터) | `feature/backtest/engine-skeleton` |
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
 M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)
