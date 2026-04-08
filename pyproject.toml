@@ -118,3 +118,17 @@ name = "portfolio domain/application purity (no pandas/numpy)"
 type = "forbidden"
 source_modules = ["portfolio.domain", "portfolio.application"]
 forbidden_modules = ["pandas", "numpy"]
+
+[[tool.importlinter.contracts]]
+name = "risk hexagonal layers"
+type = "layers"
+# WHY: ADR-006 — risk L3 활성화. domain ← application ← adapters 단방향 강제.
+layers = ["risk.adapters", "risk.application", "risk.domain"]
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "risk domain/application purity (no pandas/numpy)"
+type = "forbidden"
+# WHY: risk 는 Decimal + stdlib 만 사용. infra 의존성(pandas/numpy) 금지.
+source_modules = ["risk.domain", "risk.application"]
+forbidden_modules = ["pandas", "numpy"]
