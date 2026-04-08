@@ -419,10 +419,14 @@ def create_app(
         #      InMemoryBacktestEngine.sizer 파라미터로 전달해 RunBacktest 에 위임한다.
         #      max_position_weight/cash_buffer 는 equal_weight 선택 시에만 의미 있다.
         sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
-        risk_filter = _build_risk_filter(
-            risk_position_limit, risk_max_drawdown, risk_daily_loss,
+        # WHY: 두 어댑터가 동일 세션 객체를 공유해 peak/daily 추적 일관성 유지.
+        risk_session = _build_risk_session(
+            risk_position_limit, risk_max_drawdown, risk_daily_loss, risk_stop_loss,
         )
-        risk_advisor = _build_risk_exit_advisor(risk_stop_loss)
+        risk_filter = _build_risk_filter(
+            risk_position_limit, risk_max_drawdown, risk_daily_loss, risk_session,
+        )
+        risk_advisor = _build_risk_exit_advisor(risk_stop_loss, risk_session)
         engine = InMemoryBacktestEngine(
             sizer=sizer_instance,
             entry_filter=risk_filter,
@@ -475,6 +479,10 @@ def create_app(
             lt=1.0,
             description="In-sample 구간 비율. 0.7 이면 앞 70% = IS, 나머지 30% = OOS.",
         ),
+        risk_position_limit: float | None = Query(None, gt=0.0, le=1.0),
+        risk_max_drawdown: float | None = Query(None, gt=0.0, le=1.0),
+        risk_daily_loss: float | None = Query(None, gt=0.0, le=1.0),
+        risk_stop_loss: float | None = Query(None, gt=0.0, le=1.0),
     ) -> dict:
         """페어 백테스트를 walk-forward 방식으로 2 구간 분할 실행한다.
 
@@ -518,7 +526,19 @@ def create_app(
             risk_free_rate=Decimal(str(rfr)),
         )
         sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
-        engine = InMemoryBacktestEngine(sizer=sizer_instance)
+
+        # WHY: IS/OOS 는 독립 세션이므로 각자 별도 엔진·세션 상태를 가진다.
+        def _make_engine():
+            session = _build_risk_session(
+                risk_position_limit, risk_max_drawdown, risk_daily_loss, risk_stop_loss,
+            )
+            return InMemoryBacktestEngine(
+                sizer=sizer_instance,
+                entry_filter=_build_risk_filter(
+                    risk_position_limit, risk_max_drawdown, risk_daily_loss, session,
+                ),
+                exit_advisor=_build_risk_exit_advisor(risk_stop_loss, session),
+            )
 
         # WHY: 타임스탬프 기준 split 지점 계산. 전체 구간의 split_ratio 지점에서
         #      before/after 로 나눈다. 신호 없는 구간은 빈 결과로 반환된다.
@@ -535,8 +555,8 @@ def create_app(
         is_trading = [ts for ts in trading_signals if ts.timestamp < split_ts]
         oos_trading = [ts for ts in trading_signals if ts.timestamp >= split_ts]
 
-        is_result = engine.run(is_signals, price_history, config)
-        oos_result = engine.run(oos_signals, price_history, config)
+        is_result = _make_engine().run(is_signals, price_history, config)
+        oos_result = _make_engine().run(oos_signals, price_history, config)
 
         config_echo = {
             "lookback": lookback, "entry": entry, "exit": exit_,
@@ -585,6 +605,10 @@ def create_app(
             3, ge=2, le=10,
             description="타임라인을 k 등분한 후 rolling 하게 k-1 개 폴드를 생성.",
         ),
+        risk_position_limit: float | None = Query(None, gt=0.0, le=1.0),
+        risk_max_drawdown: float | None = Query(None, gt=0.0, le=1.0),
+        risk_daily_loss: float | None = Query(None, gt=0.0, le=1.0),
+        risk_stop_loss: float | None = Query(None, gt=0.0, le=1.0),
     ) -> dict:
         """Walk-forward 다중 폴드: 타임라인을 k 등분하고 인접 segment 쌍으로 k-1 폴드 생성.
 
@@ -626,7 +650,18 @@ def create_app(
             risk_free_rate=Decimal(str(rfr)),
         )
         sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
-        engine = InMemoryBacktestEngine(sizer=sizer_instance)
+
+        def _make_engine():
+            session = _build_risk_session(
+                risk_position_limit, risk_max_drawdown, risk_daily_loss, risk_stop_loss,
+            )
+            return InMemoryBacktestEngine(
+                sizer=sizer_instance,
+                entry_filter=_build_risk_filter(
+                    risk_position_limit, risk_max_drawdown, risk_daily_loss, session,
+                ),
+                exit_advisor=_build_risk_exit_advisor(risk_stop_loss, session),
+            )
 
         # WHY: k 등분 경계 인덱스. int 캐스팅으로 마지막 segment 가 약간 길어질 수 있음.
         n = len(timestamps)
@@ -650,8 +685,9 @@ def create_app(
             is_trading = [t for t in trading_signals if is_lo <= t.timestamp <= is_hi]
             oos_trading = [t for t in trading_signals if oos_lo <= t.timestamp <= oos_hi]
 
-            is_result = engine.run(is_sigs, price_history, config)
-            oos_result = engine.run(oos_sigs, price_history, config)
+            # WHY: 폴드 간 세션 상태 누출을 막기 위해 폴드마다 새 엔진 생성.
+            is_result = _make_engine().run(is_sigs, price_history, config)
+            oos_result = _make_engine().run(oos_sigs, price_history, config)
 
             fold_results.append({
                 "fold": i,
@@ -836,10 +872,28 @@ def _run_single_pair_backtest(
     return engine.run(backtest_signals, price_history, config)
 
 
+def _build_risk_session(
+    position_limit: float | None,
+    max_drawdown: float | None,
+    daily_loss: float | None,
+    stop_loss: float | None,
+):
+    """어떤 리스크 가드든 활성이면 공유 RiskSessionState 를 반환한다.
+
+    WHY: EntryFilter 와 ExitAdvisor 가 동일 세션 객체를 공유해야 peak/daily
+         추적이 단일 진실원으로 동작한다 (review followup).
+    """
+    if all(v is None for v in (position_limit, max_drawdown, daily_loss, stop_loss)):
+        return None
+    from backtest.adapters.outbound.risk_session_state import RiskSessionState
+    return RiskSessionState()
+
+
 def _build_risk_filter(
     position_limit: float | None,
     max_drawdown: float | None,
     daily_loss: float | None,
+    session_state=None,
 ):
     """리스크 가드 파라미터를 받아 RiskEntryFilter 를 조립한다.
 
@@ -861,10 +915,10 @@ def _build_risk_filter(
         guards.append(DrawdownCircuitBreaker(max_drawdown=Decimal(str(max_drawdown))))
     if daily_loss is not None:
         guards.append(DailyLossLimitGuard(max_daily_loss=Decimal(str(daily_loss))))
-    return RiskEntryFilter(guards=guards)
+    return RiskEntryFilter(guards=guards, session_state=session_state)
 
 
-def _build_risk_exit_advisor(stop_loss: float | None):
+def _build_risk_exit_advisor(stop_loss: float | None, session_state=None):
     """stop_loss 가 지정되면 RiskExitAdvisor(StopLossGuard) 를 조립한다 (M5 S14).
 
     WHY: 진입 차단(EntryFilter) 만으로는 보유 포지션을 강제 청산할 수 없으므로
@@ -874,7 +928,10 @@ def _build_risk_exit_advisor(stop_loss: float | None):
         return None
     from backtest.adapters.outbound.risk_exit_advisor import RiskExitAdvisor
     from risk.adapters.outbound import StopLossGuard
-    return RiskExitAdvisor(guards=[StopLossGuard(max_loss_pct=Decimal(str(stop_loss)))])
+    return RiskExitAdvisor(
+        guards=[StopLossGuard(max_loss_pct=Decimal(str(stop_loss)))],
+        session_state=session_state,
+    )
 
 
 def _build_sizer(

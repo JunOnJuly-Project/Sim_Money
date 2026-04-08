@@ -10,10 +10,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from backtest.adapters.outbound.in_memory_backtest_engine import InMemoryBacktestEngine
+from backtest.adapters.outbound.risk_entry_filter import RiskEntryFilter
 from backtest.adapters.outbound.risk_exit_advisor import RiskExitAdvisor
+from backtest.adapters.outbound.risk_session_state import RiskSessionState
 from backtest.domain.backtest_config import BacktestConfig
 from backtest.domain.price_bar import PriceBar
 from backtest.domain.signal import Side, Signal
+from risk.adapters.outbound.position_limit_guard import PositionLimitGuard
 from risk.adapters.outbound.stop_loss_guard import StopLossGuard
 
 
@@ -85,6 +88,8 @@ class TestExitAdvisorGolden:
 
     def test_advisor_없으면_손절선_미돌파_케이스는_불변이다(self) -> None:
         # WHY: 100 → 110 단조 상승은 ForceClose 트리거 안 함. 골든 케이스 1 과 동일.
+        #      advisor OFF/ON 의 trades·metrics.total_return 이 모두 동등해야 한다
+        #      (review followup — advisor 시맨틱 변화가 미트리거 경로를 건드리면 안 됨).
         t1, t2 = _utc(1), _utc(2)
         config = BacktestConfig(
             initial_capital=Decimal("10000"),
@@ -98,8 +103,38 @@ class TestExitAdvisorGolden:
         price_history = {
             "AAPL": [_bar("AAPL", "100", t1), _bar("AAPL", "110", t2)]
         }
+
+        engine_off = InMemoryBacktestEngine()
+        result_off = engine_off.run(signals=signals, price_history=price_history, config=config)
+
         advisor = RiskExitAdvisor(guards=[StopLossGuard(max_loss_pct=Decimal("0.05"))])
-        engine = InMemoryBacktestEngine(exit_advisor=advisor)
-        result = engine.run(signals=signals, price_history=price_history, config=config)
-        assert len(result.trades) == 1
-        assert result.trades[0].pnl == Decimal("1000")
+        engine_on = InMemoryBacktestEngine(exit_advisor=advisor)
+        result_on = engine_on.run(signals=signals, price_history=price_history, config=config)
+
+        assert len(result_on.trades) == 1
+        assert result_on.trades[0].pnl == Decimal("1000")
+        # trades 와 total_return 은 advisor 미트리거 경로에서 동등해야 한다
+        assert result_off.trades[0].pnl == result_on.trades[0].pnl
+        assert result_off.metrics.total_return == result_on.metrics.total_return
+
+
+class TestRiskSessionState_공유:
+    """EntryFilter 와 ExitAdvisor 가 같은 세션 객체를 공유하면 peak 가 어긋나지 않아야 한다."""
+
+    def test_공유_세션_주입시_양쪽_어댑터가_동일_peak_을_본다(self) -> None:
+        session = RiskSessionState()
+        filt = RiskEntryFilter(guards=[PositionLimitGuard(max_weight=Decimal("0.5"))], session_state=session)
+        advisor = RiskExitAdvisor(guards=[StopLossGuard(max_loss_pct=Decimal("0.5"))], session_state=session)
+
+        # advisor 가 먼저 높은 equity 를 관측
+        advisor.advise(
+            timestamp=_utc(1),
+            positions={},  # 빈 포지션 → 빠른 리턴이지만 observe 는 호출되지 않는다
+            available_cash=Decimal("10000"),
+            equity=Decimal("15000"),
+        )
+        # 빈 포지션은 관측 없이 조기 리턴하므로 직접 observe 테스트
+        session.observe(_utc(1), Decimal("15000"))
+
+        assert filt._session is session  # 같은 인스턴스
+        assert session.peak_equity == Decimal("15000")
