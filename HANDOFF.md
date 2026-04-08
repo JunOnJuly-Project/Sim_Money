@@ -138,6 +138,7 @@ docker compose up
 | M5 S8/S9 | backtest 통합 — EntryFilter 포트 + RunBacktest 훅 주입 + RiskEntryFilter 어댑터 (risk 가드 브릿지). 기본 None 으로 골든 수치 불변. 555 GREEN, 12 KEPT | ✅ | feature/backtest/risk-integration |
 | M5 S12 | /backtest/pair `risk_position_limit/max_drawdown/daily_loss` 쿼리 + InMemoryBacktestEngine.entry_filter 주입 + config 에코. 557 GREEN, 12 KEPT | ✅ | feature/api/risk-params |
 | M5 S13 | 백테스트 대시보드 — 접이식 "리스크 가드 (선택)" 섹션 + 3 입력 (포지션/DD/일일손실), 빈값=null → 쿼리 미포함. 557 GREEN, 12 KEPT | ✅ | feature/web/risk-inputs |
+| M5 S10 | 가드 활성 골든 회귀 3종 — PositionLimit BlockNew/Allow 경계 + ON·OFF equity_curve 분기. RiskEntryFilter notional 추정(`strength*cash/N`) 이 StrengthPositionSizer.size_group 과 일치함을 결정론 검증. 560 GREEN, 12 KEPT | ✅ | feature/backtest/risk-golden |
 
 ### 🔴 블로커
 없음
@@ -146,13 +147,9 @@ docker compose up
 
 | 우선순위 | 슬라이스 | 설명 | 브랜치 |
 |---------|---------|------|--------|
-| 1 | M5 S10 | 가드 활성 골든 회귀 2종 — RiskEntryFilter 의미 검증(특히 notional ≈ `strength*cash/N` 추정이 실 사이저와 일치하는지) 겸용. 결정론 픽스처에서 BlockNew 로 진입이 막히는지·equity_curve 가 갈라지는지 확인 | `feature/backtest/risk-golden` |
-| 2 | M5 S11 | PlanRebalance → PositionLimitGuard 위임 (DRY) — 기존 PortfolioConstraints.max_position_weight 검증을 risk 도메인으로 이전, 기존 portfolio 테스트 전부 GREEN 유지 | `feature/portfolio/limit-via-risk` |
-| 3 | M5 S14 (deferred) | ExitAdvisor 포트 신설 + StopLossGuard ForceClose 의 엔진 실시간 청산 통합. EntryFilter 만으로는 강제 청산 불가하므로 별도 ADR-007 후보 | `feature/backtest/exit-advisor` |
-| 4 | M4 S7 | k-fold UI (folds 입력 + 폴드별 카드 표시) — 백엔드는 M4 S5 에서 완료 | `feature/web/walk-forward-kfold-ui` |
-
-#### 다음 세션 첫 작업 권고
-**M5 S10 부터.** 골든 회귀 작성 과정에서 RiskEntryFilter 의 notional 추정 로직(`candidate.strength * available_cash / N`) 이 실제 StrengthPositionSizer/PortfolioPositionSizer 와 의미가 일치하는지 손으로 검증할 것. 어긋나면 가드가 잘못된 비중 기준으로 차단/허용하게 된다.
+| 1 | M5 S11 | PlanRebalance → PositionLimitGuard 위임 (DRY) — 기존 PortfolioConstraints.max_position_weight 검증을 risk 도메인으로 이전, 기존 portfolio 테스트 전부 GREEN 유지 | `feature/portfolio/limit-via-risk` |
+| 2 | M5 S14 (deferred) | ExitAdvisor 포트 신설 + StopLossGuard ForceClose 의 엔진 실시간 청산 통합. EntryFilter 만으로는 강제 청산 불가하므로 별도 ADR-007 후보 | `feature/backtest/exit-advisor` |
+| 3 | M4 S7 | k-fold UI (folds 입력 + 폴드별 카드 표시) — 백엔드는 M4 S5 에서 완료 | `feature/web/walk-forward-kfold-ui` |
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
 M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)
