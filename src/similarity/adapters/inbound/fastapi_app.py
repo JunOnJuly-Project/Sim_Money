@@ -36,6 +36,10 @@ from trading_signal.application.use_cases.generate_pair_signals import PairSigna
 from trading_signal.domain.pair import Pair
 from universe.application.ports import UniverseSource
 
+# /portfolio/compute 전략 이름 상수
+_STRATEGY_EQUAL_WEIGHT = "equal_weight"
+_STRATEGY_SCORE_WEIGHTED = "score_weighted"
+
 # 에러 메시지 식별자 — 매직 문자열 금지
 _ERR_NOT_IN_UNIVERSE = "유니버스에 없습니다"
 # WHY: 시계열 부재는 아직 데이터가 없는 상태이므로 빈 results 로 처리해
@@ -118,6 +122,37 @@ class RebalanceResponse(BaseModel):
     """POST /portfolio/rebalance 응답 바디."""
 
     intents: list[OrderIntentResponse]
+
+
+# ── 목표 비중 계산 요청/응답 DTO ──────────────────────────────────────────────
+
+class SignalInputDto(BaseModel):
+    """단일 시그널 입력 DTO."""
+
+    symbol: str
+    score: float  # >= 0
+
+
+class ComputeWeightsRequest(BaseModel):
+    """POST /portfolio/compute 요청 바디."""
+
+    signals: list[SignalInputDto]
+    strategy: Literal["equal_weight", "score_weighted"] = "equal_weight"
+    max_position_weight: float = 1.0  # (0, 1]
+    cash_buffer: float = 0.0  # [0, 1)
+
+
+class TargetWeightResponse(BaseModel):
+    """단일 목표 비중 응답 DTO."""
+
+    symbol: str
+    weight: float
+
+
+class ComputeWeightsResponse(BaseModel):
+    """POST /portfolio/compute 응답 바디."""
+
+    weights: list[TargetWeightResponse]
 
 
 def create_app(
@@ -323,6 +358,26 @@ def create_app(
 
         # 9. 응답 직렬화
         return _serialize_backtest_result(a, b, result, trading_signals)
+
+    @app.post("/portfolio/compute", response_model=ComputeWeightsResponse)
+    def compute_weights_endpoint(req: ComputeWeightsRequest) -> ComputeWeightsResponse:
+        """시그널과 전략을 받아 목표 비중을 계산하고 반환한다.
+
+        WHY: ComputeTargetWeights 유스케이스를 HTTP 로 노출하는 얇은 어댑터.
+             strategy 문자열로 전략 구현체를 선택하고, 도메인 ValueError 는
+             400 으로 변환한다. 직렬화·역직렬화만 담당하며 비즈니스 로직을 포함하지 않는다.
+        """
+        try:
+            result_weights = _execute_compute_weights(req)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        return ComputeWeightsResponse(
+            weights=[
+                TargetWeightResponse(symbol=w.symbol, weight=float(w.weight))
+                for w in result_weights
+            ]
+        )
 
     @app.post("/portfolio/rebalance", response_model=RebalanceResponse)
     def rebalance_endpoint(req: RebalanceRequest) -> RebalanceResponse:
@@ -601,6 +656,42 @@ def _execute_plan_rebalance(
 
     use_case = PlanRebalance(min_trade_weight=Decimal(str(req.min_trade_weight)))
     return use_case.execute(current, targets, Decimal(str(req.total_equity)))
+
+
+def _execute_compute_weights(req: ComputeWeightsRequest) -> tuple:
+    """ComputeTargetWeights 유스케이스를 조립하고 실행한다.
+
+    WHY: import 를 함수 내부로 한정해 portfolio 의존이 엔드포인트 정의와
+         분리되도록 한다. strategy 문자열에 따라 올바른 전략 구현체를 선택한다.
+         float → Decimal 변환 시 str 경유로 부동소수점 오차를 제거한다.
+
+    Args:
+        req: ComputeWeightsRequest DTO
+
+    Returns:
+        tuple[TargetWeight, ...] — 목표 비중 튜플
+    """
+    from portfolio.adapters.outbound.equal_weight_strategy import EqualWeightStrategy
+    from portfolio.adapters.outbound.score_weighted_strategy import ScoreWeightedStrategy
+    from portfolio.application.ports.weighting_strategy import SignalInput
+    from portfolio.application.use_cases.compute_target_weights import ComputeTargetWeights
+    from portfolio.domain.constraints import PortfolioConstraints
+
+    strategy_instance = (
+        EqualWeightStrategy()
+        if req.strategy == _STRATEGY_EQUAL_WEIGHT
+        else ScoreWeightedStrategy()
+    )
+    constraints = PortfolioConstraints(
+        max_position_weight=Decimal(str(req.max_position_weight)),
+        cash_buffer=Decimal(str(req.cash_buffer)),
+    )
+    signals = [
+        SignalInput(symbol=s.symbol, score=Decimal(str(s.score)))
+        for s in req.signals
+    ]
+    use_case = ComputeTargetWeights(strategy=strategy_instance)
+    return use_case.execute(signals, constraints)
 
 
 def _compute_rolling_corr(
