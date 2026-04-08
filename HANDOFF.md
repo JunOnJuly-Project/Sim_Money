@@ -135,6 +135,7 @@ docker compose up
 | M5 S5 | StopLossGuard (G2) — 포지션 손실률 한도 초과 시 ForceClose. 541 GREEN, 10 KEPT | ✅ | feature/risk/stop-loss-guard |
 | M5 S6 | DailyLossLimitGuard (G4) — 당일 손익률 한도 이하 시 BlockNew. 549 GREEN, 10 KEPT | ✅ | feature/risk/daily-loss-limit |
 | M5 S7 | import-linter `risk hexagonal layers` + `risk purity` 2 계약 추가 (10→12 KEPT) + ADR-005 갱신 | ✅ | feature/risk/importlinter-contracts |
+| M5 S8/S9 | backtest 통합 — EntryFilter 포트 + RunBacktest 훅 주입 + RiskEntryFilter 어댑터 (risk 가드 브릿지). 기본 None 으로 골든 수치 불변. 555 GREEN, 12 KEPT | ✅ | feature/backtest/risk-integration |
 
 ### 🔴 블로커
 없음

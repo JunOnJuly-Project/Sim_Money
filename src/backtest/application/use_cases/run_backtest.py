@@ -16,6 +16,7 @@ from decimal import Decimal
 from itertools import groupby
 from typing import Mapping, Sequence
 
+from backtest.application.ports.entry_filter import EntryFilter
 from backtest.application.ports.performance_calculator import PerformanceCalculator
 from backtest.application.ports.position_sizer import PositionSizer
 from backtest.application.ports.trade_executor import TradeExecutor
@@ -35,6 +36,7 @@ class RunBacktest:
         trade_executor: TradeExecutor,
         performance_calculator: PerformanceCalculator,
         sizer: PositionSizer | None = None,
+        entry_filter: EntryFilter | None = None,
     ) -> None:
         """포트 구현체를 주입받아 유스케이스를 초기화한다.
 
@@ -49,6 +51,8 @@ class RunBacktest:
         # WHY: 기본 사이저는 strength/N 로 기존 동작을 유지한다. 어댑터를 import 하지
         #      않기 위해 application 내부에 순수 클래스로 정의한다.
         self._sizer: PositionSizer = sizer if sizer is not None else _DefaultStrengthSizer()
+        # WHY: 기본 None 이면 no-op 필터. 기존 골든 케이스 수치 불변을 보장한다.
+        self._entry_filter: EntryFilter | None = entry_filter
 
     def execute(
         self,
@@ -83,6 +87,7 @@ class RunBacktest:
             available_cash = _process_timestamp_signals(
                 ts, ts_signals, bar_index, config, available_cash,
                 open_positions, trades, self._trade_executor, self._sizer,
+                self._entry_filter,
             )
             # WHY: 매 bar 처리 완료 후 mark-to-market 스냅샷을 기록한다.
             #      M2 한정: 미실현 손익 = 현재 bar close 기준 mark-to-market.
@@ -167,6 +172,7 @@ def _process_timestamp_signals(
     trades: list[Trade],
     executor: TradeExecutor,
     sizer: PositionSizer,
+    entry_filter: EntryFilter | None,
 ) -> Decimal:
     """단일 timestamp 의 신호 목록을 처리하고 갱신된 가용 현금을 반환한다.
 
@@ -202,6 +208,23 @@ def _process_timestamp_signals(
 
     if not new_long_signals:
         return available_cash
+
+    # WHY: 외부 진입 필터(리스크 가드 등)가 주입되면 후보를 축소한다.
+    #      equity 는 available_cash + 기존 포지션 mark-to-market 으로 근사한다.
+    if entry_filter is not None:
+        equity = available_cash + sum(
+            (
+                bar_index[(pos.ticker, ts)].close * pos.quantity
+                if (pos.ticker, ts) in bar_index
+                else pos.entry_price * pos.quantity
+                for pos in open_positions.values()
+            ),
+            Decimal("0"),
+        )
+        filtered = list(entry_filter.filter(ts, new_long_signals, available_cash, equity))
+        if not filtered:
+            return available_cash
+        new_long_signals = filtered
 
     # WHY: 그룹 진입 시점의 총자본을 스냅샷으로 고정한다.
     #      weight = '그룹 진입 시점 총자본 대비 비율' 의미가 되어
