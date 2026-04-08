@@ -295,25 +295,29 @@ function ExploreForm({
         />
       </div>
 
-      {/* top_k */}
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-          상위 결과 수 (top_k)
-        </label>
+      {/* top_k — 슬라이더. 시드 유니버스(KRX30+NASDAQ15=45) 에서 자기 자신 제외 max=44 */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between">
+          <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+            상위 결과 수
+          </label>
+          <span className="font-mono text-sm" style={{ color: "var(--accent)" }}>
+            {form.top_k}개
+          </span>
+        </div>
         <input
-          type="number"
+          type="range"
           min={1}
-          max={100}
-          required
+          max={44}
+          step={1}
           value={form.top_k}
           onChange={(e) => onChange({ top_k: Number(e.target.value) })}
-          className="rounded-md border px-3 py-2 text-sm"
-          style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border)",
-            color: "var(--foreground)",
-          }}
+          className="w-full accent-sky-400"
         />
+        <div className="flex justify-between text-[10px] font-mono" style={{ color: "var(--muted)" }}>
+          <span>1</span>
+          <span>44 (유니버스 최대)</span>
+        </div>
       </div>
 
       {/* WHY: weighted_sum 전략에서만 w1/w2/w3 가 실제로 사용된다. spearman·cointegration
