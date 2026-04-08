@@ -112,3 +112,43 @@ def test_total_equity_가_0_이면_현재_비중이_모두_0_으로_처리된다
     assert len(plan.intents) == 1
     assert plan.intents[0].side == "BUY"
     assert plan.intents[0].delta_weight == Decimal("0.5")
+
+
+# ── 제약 사후 검증 ────────────────────────────────────────────────────────
+
+def test_constraints_주입시_max_position_weight_초과는_ConstraintViolation():
+    """WHY: 외부에서 임의로 구성된 targets 가 제약을 위반해도 유스케이스에서 차단한다."""
+    from portfolio.domain.constraints import PortfolioConstraints
+    from portfolio.domain.errors import ConstraintViolation
+
+    constraints = PortfolioConstraints(
+        max_position_weight=Decimal("0.3"),
+        cash_buffer=Decimal("0"),
+    )
+    uc = PlanRebalance(min_trade_weight=Decimal("0"), constraints=constraints)
+    targets = [_tw("A", "0.5")]  # 0.3 초과
+    with pytest.raises(ConstraintViolation, match="max_position_weight"):
+        uc.execute([], targets, _EQUITY)
+
+
+def test_constraints_주입시_cash_buffer_위반하면_ConstraintViolation():
+    """WHY: 목표 비중 합이 1 - cash_buffer 를 초과하면 투자 한도 위반."""
+    from portfolio.domain.constraints import PortfolioConstraints
+    from portfolio.domain.errors import ConstraintViolation
+
+    constraints = PortfolioConstraints(
+        max_position_weight=Decimal("1"),
+        cash_buffer=Decimal("0.2"),
+    )
+    uc = PlanRebalance(min_trade_weight=Decimal("0"), constraints=constraints)
+    targets = [_tw("A", "0.5"), _tw("B", "0.4")]  # 합=0.9 > 0.8
+    with pytest.raises(ConstraintViolation, match="cash_buffer"):
+        uc.execute([], targets, _EQUITY)
+
+
+def test_constraints_미주입이면_제약_검증없이_통과():
+    """WHY: 기본값 None 이면 하위 호환 — 기존 호출부는 제약 검증 없이 동작한다."""
+    uc = PlanRebalance(min_trade_weight=Decimal("0"))
+    targets = [_tw("A", "0.99")]
+    plan = uc.execute([], targets, _EQUITY)
+    assert len(plan.intents) == 1
