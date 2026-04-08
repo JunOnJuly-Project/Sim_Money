@@ -117,6 +117,7 @@ docker compose up
 | M3 S9 | 리밸런싱 플래너 UI (/rebalance) — 현재 포지션/목표 가중치 동적 폼 + 합계 검증 + BUY/SELL 결과 테이블 + 홈 네비 링크 | ✅ | feature/web/rebalance-planner |
 | M3 S10 | ScoreWeightedStrategy — 두 번째 WeightingStrategy (score 비율 가중, 합=0 폴백, 캡 적용) + /backtest/pair sizer=score_weighted 옵션 + UI 토글. 463 GREEN, 10 KEPT | ✅ | feature/portfolio/score-weighted |
 | M3 S11 | POST /portfolio/compute — ComputeTargetWeights HTTP 노출 (equal/score 전략 선택, cash_buffer/max_position_weight 적용). 470 GREEN, 10 KEPT | ✅ | feature/api/portfolio-compute |
+| M3 S12 | /backtest/pair 응답에 config 에코 추가 + 대시보드 설정 카드 표시. 471 GREEN, 10 KEPT | ✅ | feature/api/backtest-metadata |
 
 ### 🔴 블로커
 없음

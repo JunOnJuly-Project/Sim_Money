@@ -151,6 +151,25 @@ class TestBacktestEndpoint_정상_응답:
         assert "equity_curve" in body
         assert "pair" in body
         assert "signals_count" in body
+        assert "config" in body
+
+    def test_config_echo에_요청_파라미터를_반영한다(self) -> None:
+        """WHY: UI 가 실제 사용된 sizer/rfr/제약을 표시할 수 있도록
+               엔드포인트는 요청 파라미터를 config echo 로 반환해야 한다.
+        """
+        series_a = _make_price_series("AAA", n=30, start_price=100.0)
+        series_b = _make_price_series("BBB", n=30, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get(
+            "/backtest/pair/AAA/BBB?sizer=equal_weight&rfr=0.03&cash_buffer=0.1"
+        )
+
+        assert response.status_code == 200
+        config = response.json()["config"]
+        assert config["sizer"] == "equal_weight"
+        assert config["rfr"] == 0.03
+        assert config["cash_buffer"] == 0.1
 
     def test_metrics_하위_키를_모두_포함한다(self) -> None:
         """WHY: metrics 내 total_return/sharpe/max_drawdown/win_rate 가 모두 있어야
