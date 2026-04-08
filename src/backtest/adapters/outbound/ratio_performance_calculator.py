@@ -56,6 +56,8 @@ class RatioPerformanceCalculator:
         total_return = _calc_total_return(equity_curve)
         max_drawdown = _calc_max_drawdown(equity_curve)
         sharpe = self._calc_sharpe(equity_curve)
+        sortino = self._calc_sortino(equity_curve)
+        calmar = _calc_calmar(total_return, max_drawdown, len(equity_curve))
         win_rate = _calc_win_rate(trades)
 
         return PerformanceMetrics(
@@ -63,7 +65,28 @@ class RatioPerformanceCalculator:
             sharpe=sharpe,
             max_drawdown=max_drawdown,
             win_rate=win_rate,
+            sortino=sortino,
+            calmar=calmar,
         )
+
+    def _calc_sortino(self, equity_curve: Sequence[tuple]) -> float:
+        """하방 변동성 기반 연율화 Sortino 비율.
+
+        WHY: Sharpe 는 전체 변동성을 처벌하지만 Sortino 는 하방 수익률만
+             처벌해 실제 투자자가 느끼는 "손실 위험"에 더 부합한다.
+        """
+        values = [float(v) for _, v in equity_curve]
+        if len(values) < 2:
+            return 0.0
+        _validate_equity_values(values)
+
+        daily_rfr = self.risk_free_rate / TRADING_DAYS_PER_YEAR
+        returns = [
+            (values[i] - values[i - 1]) / values[i - 1]
+            for i in range(1, len(values))
+        ]
+        excess = [r - daily_rfr for r in returns]
+        return _sortino_from_excess(excess)
 
     def _calc_sharpe(self, equity_curve: Sequence[tuple]) -> float:
         """초과수익률 기반 연율화 샤프 비율.
@@ -161,6 +184,45 @@ def _sharpe_from_excess(excess: list[float]) -> float:
     if std_e == 0.0:
         return 0.0
     return (mean_e / std_e) * _ANNUALIZATION_FACTOR
+
+
+def _sortino_from_excess(excess: list[float]) -> float:
+    """초과수익률 중 음수만으로 하방 표준편차를 계산해 연율화한다.
+
+    WHY: 하방 수익률이 없거나 n<2 이면 분모=0 이 되므로 0.0 반환.
+    """
+    n = len(excess)
+    if n < 2:
+        return 0.0
+    mean_e = sum(excess) / n
+    downside = [e for e in excess if e < 0.0]
+    if len(downside) < 2:
+        return 0.0
+    # WHY: 하방 편차의 제곱 평균. ddof=1 로 편향을 줄인다.
+    variance = sum(d ** 2 for d in downside) / (len(downside) - 1)
+    downside_std = math.sqrt(variance)
+    if downside_std == 0.0:
+        return 0.0
+    return (mean_e / downside_std) * _ANNUALIZATION_FACTOR
+
+
+def _calc_calmar(
+    total_return: Decimal, max_drawdown: Decimal, num_points: int
+) -> float:
+    """Calmar = 연율화 수익률 / |MDD|.
+
+    WHY: MDD 대비 연수익률로 꼬리 리스크 조정 수익률을 표현한다.
+         num_points<2 또는 MDD=0 이면 0.0 을 반환해 안전하게 처리한다.
+    """
+    if num_points < 2 or max_drawdown == _ZERO:
+        return 0.0
+    # (1 + total_return) ^ (252 / (num_points - 1)) - 1
+    periods = TRADING_DAYS_PER_YEAR / (num_points - 1)
+    base = 1.0 + float(total_return)
+    if base <= 0.0:
+        return 0.0
+    annualized = base ** periods - 1.0
+    return annualized / abs(float(max_drawdown))
 
 
 def _empty_metrics() -> PerformanceMetrics:
