@@ -146,8 +146,13 @@ docker compose up
 
 | 우선순위 | 슬라이스 | 설명 | 브랜치 |
 |---------|---------|------|--------|
-| 1 | M5 계획 | `/plan` 으로 리스크 관리 vs 실시간 데이터 파이프라인 브레인스토밍 | - |
-| 2 | M4 S7 | k-fold UI (folds 입력 + 폴드별 카드 표시) | `feature/web/walk-forward-kfold-ui` |
+| 1 | M5 S10 | 가드 활성 골든 회귀 2종 — RiskEntryFilter 의미 검증(특히 notional ≈ `strength*cash/N` 추정이 실 사이저와 일치하는지) 겸용. 결정론 픽스처에서 BlockNew 로 진입이 막히는지·equity_curve 가 갈라지는지 확인 | `feature/backtest/risk-golden` |
+| 2 | M5 S11 | PlanRebalance → PositionLimitGuard 위임 (DRY) — 기존 PortfolioConstraints.max_position_weight 검증을 risk 도메인으로 이전, 기존 portfolio 테스트 전부 GREEN 유지 | `feature/portfolio/limit-via-risk` |
+| 3 | M5 S14 (deferred) | ExitAdvisor 포트 신설 + StopLossGuard ForceClose 의 엔진 실시간 청산 통합. EntryFilter 만으로는 강제 청산 불가하므로 별도 ADR-007 후보 | `feature/backtest/exit-advisor` |
+| 4 | M4 S7 | k-fold UI (folds 입력 + 폴드별 카드 표시) — 백엔드는 M4 S5 에서 완료 | `feature/web/walk-forward-kfold-ui` |
+
+#### 다음 세션 첫 작업 권고
+**M5 S10 부터.** 골든 회귀 작성 과정에서 RiskEntryFilter 의 notional 추정 로직(`candidate.strength * available_cash / N`) 이 실제 StrengthPositionSizer/PortfolioPositionSizer 와 의미가 일치하는지 손으로 검증할 것. 어긋나면 가드가 잘못된 비중 기준으로 차단/허용하게 된다.
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
 M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)
