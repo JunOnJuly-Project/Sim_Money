@@ -437,3 +437,76 @@ class TestBacktestEndpoint_rfr_파라미터:
         # 트레이드가 존재하면 sharpe 가 달라짐을 추가 검증
         if resp_default.json()["trades"] and sharpe_default is not None and sharpe_custom is not None:
             assert sharpe_default != sharpe_custom
+
+
+class TestBacktestWalkForward:
+    """/backtest/pair/{a}/{b}/walk-forward 엔드포인트 통합 테스트 (M4 S2)."""
+
+    def test_walk_forward_200_및_IS_OOS_키를_반환한다(self) -> None:
+        """WHY: 기본 요청이 in_sample / out_of_sample / split 키를 모두 포함해야 한다."""
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get("/backtest/pair/AAA/BBB/walk-forward?split_ratio=0.6")
+        assert response.status_code == 200
+        body = response.json()
+        for key in ("pair", "split", "in_sample", "out_of_sample", "config"):
+            assert key in body
+        assert body["split"]["ratio"] == 0.6
+        assert "metrics" in body["in_sample"]
+        assert "metrics" in body["out_of_sample"]
+
+    def test_split_ratio_너무_크면_400(self) -> None:
+        """WHY: split_ratio 가 1.0 근처면 OOS 가 비어 FastAPI 검증(lt=1.0) 에 걸린다."""
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get("/backtest/pair/AAA/BBB/walk-forward?split_ratio=1.0")
+        # 1.0 은 lt=1.0 제약 위반 → 422
+        assert response.status_code == 422
+
+
+class TestBacktestBatch:
+    """POST /backtest/batch 엔드포인트 통합 테스트 (M4 S3)."""
+
+    def test_여러_페어를_한번에_실행한다(self) -> None:
+        """WHY: pairs 배열의 각 페어가 결과 리스트에 들어오고 aggregate 가 계산된다."""
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        payload = {
+            "pairs": [
+                {"a": "AAA", "b": "BBB"},
+                {"a": "AAA", "b": "BBB"},
+            ],
+        }
+        response = client.post("/backtest/batch", json=payload)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["aggregate"]["pair_count"] == 2
+        assert body["aggregate"]["success_count"] == 2
+        assert len(body["results"]) == 2
+        assert "avg_total_return" in body["aggregate"]
+
+    def test_실패한_페어는_error_로_보고되고_집계에서_제외된다(self) -> None:
+        """WHY: 존재하지 않는 심볼은 error 필드로 보고되고 집계에 포함되지 않는다."""
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        payload = {
+            "pairs": [
+                {"a": "AAA", "b": "BBB"},
+                {"a": "UNKNOWN_X", "b": "UNKNOWN_Y"},
+            ],
+        }
+        response = client.post("/backtest/batch", json=payload)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["aggregate"]["pair_count"] == 2
+        assert body["aggregate"]["success_count"] == 1
+        errors = [r for r in body["results"] if "error" in r]
+        assert len(errors) == 1

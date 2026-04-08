@@ -157,6 +157,29 @@ class TargetWeightResponse(BaseModel):
     weight: float
 
 
+class PairRef(BaseModel):
+    """배치 백테스트의 단일 페어 식별자."""
+
+    a: str
+    b: str
+
+
+class BatchBacktestRequest(BaseModel):
+    """POST /backtest/batch 요청 바디."""
+
+    pairs: list[PairRef]
+    lookback: int = _BACKTEST_DEFAULT_LOOKBACK
+    entry: float = _BACKTEST_DEFAULT_ENTRY
+    exit: float = _BACKTEST_DEFAULT_EXIT
+    initial: float = _BACKTEST_DEFAULT_INITIAL
+    fee: float = _BACKTEST_DEFAULT_FEE
+    slippage: float = _BACKTEST_DEFAULT_SLIPPAGE
+    rfr: float = _BACKTEST_DEFAULT_RFR
+    sizer: Literal["strength", "equal_weight", "score_weighted"] = "strength"
+    max_position_weight: float = _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT
+    cash_buffer: float = _BACKTEST_DEFAULT_CASH_BUFFER
+
+
 class ComputeWeightsResponse(BaseModel):
     """POST /portfolio/compute 응답 바디."""
 
@@ -398,6 +421,183 @@ def create_app(
         }
         return _serialize_backtest_result(a, b, result, trading_signals, config_echo)
 
+    @app.get("/backtest/pair/{a}/{b}/walk-forward")
+    def backtest_walk_forward_endpoint(
+        a: str,
+        b: str,
+        lookback: int = Query(_BACKTEST_DEFAULT_LOOKBACK),
+        entry: float = Query(_BACKTEST_DEFAULT_ENTRY),
+        exit_: float = Query(_BACKTEST_DEFAULT_EXIT, alias="exit"),
+        initial: float = Query(_BACKTEST_DEFAULT_INITIAL),
+        fee: float = Query(_BACKTEST_DEFAULT_FEE),
+        slippage: float = Query(_BACKTEST_DEFAULT_SLIPPAGE),
+        rfr: float = Query(_BACKTEST_DEFAULT_RFR, ge=0.0, le=1.0),
+        sizer: Literal["strength", "equal_weight", "score_weighted"] = Query(
+            _SIZER_STRENGTH
+        ),
+        max_position_weight: float = Query(
+            _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT, gt=0.0, le=1.0
+        ),
+        cash_buffer: float = Query(
+            _BACKTEST_DEFAULT_CASH_BUFFER, ge=0.0, lt=1.0
+        ),
+        split_ratio: float = Query(
+            0.7,
+            gt=0.0,
+            lt=1.0,
+            description="In-sample 구간 비율. 0.7 이면 앞 70% = IS, 나머지 30% = OOS.",
+        ),
+    ) -> dict:
+        """페어 백테스트를 walk-forward 방식으로 2 구간 분할 실행한다.
+
+        WHY: 인샘플(IS)로 가설을 학습하고 아웃오브샘플(OOS)에서 성능이 유지되는지
+             분리 평가해 과최적화 여부를 탐지한다. 가장 단순한 단일 split 형태로,
+             공통 타임라인을 split_ratio 지점에서 자른 뒤 동일 엔진을 두 번 실행한다.
+        """
+        ticker_a, ticker_b = _resolve_tickers(a, b)
+
+        series_a = repository.load(ticker_a)
+        if series_a is None:
+            raise HTTPException(status_code=404, detail=f"{a}: 가격 시계열 없음")
+        series_b = repository.load(ticker_b)
+        if series_b is None:
+            raise HTTPException(status_code=404, detail=f"{b}: 가격 시계열 없음")
+
+        common_dates, prices_a, prices_b = _intersect_series(series_a, series_b)
+        if len(common_dates) < lookback + 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"교집합 길이({len(common_dates)})가 lookback({lookback})+1 보다 짧습니다.",
+            )
+
+        timestamps = [
+            datetime(d.year, d.month, d.day, tzinfo=timezone.utc) for d in common_dates
+        ]
+        pair = Pair(a=a, b=b)
+        signal_config = PairSignalConfig(
+            entry_threshold=entry, exit_threshold=exit_, lookback_window=lookback,
+        )
+        signal_source = PairTradingSignalSource(
+            pairs=[pair], timestamps=timestamps, config=signal_config,
+        )
+        trading_signals = signal_source.generate({a: prices_a, b: prices_b})
+        backtest_signals = [trading_signal_to_backtest_signal(ts) for ts in trading_signals]
+        price_history = _build_price_history(a, b, timestamps, prices_a, prices_b)
+        config = BacktestConfig(
+            initial_capital=Decimal(str(initial)),
+            fee_rate=Decimal(str(fee)),
+            slippage_bps=Decimal(str(slippage)),
+            risk_free_rate=Decimal(str(rfr)),
+        )
+        sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
+        engine = InMemoryBacktestEngine(sizer=sizer_instance)
+
+        # WHY: 타임스탬프 기준 split 지점 계산. 전체 구간의 split_ratio 지점에서
+        #      before/after 로 나눈다. 신호 없는 구간은 빈 결과로 반환된다.
+        split_index = max(1, int(len(timestamps) * split_ratio))
+        if split_index >= len(timestamps):
+            raise HTTPException(
+                status_code=400,
+                detail="split_ratio 가 너무 커서 OOS 구간이 비었습니다.",
+            )
+        split_ts = timestamps[split_index]
+
+        is_signals = [s for s in backtest_signals if s.timestamp < split_ts]
+        oos_signals = [s for s in backtest_signals if s.timestamp >= split_ts]
+        is_trading = [ts for ts in trading_signals if ts.timestamp < split_ts]
+        oos_trading = [ts for ts in trading_signals if ts.timestamp >= split_ts]
+
+        is_result = engine.run(is_signals, price_history, config)
+        oos_result = engine.run(oos_signals, price_history, config)
+
+        config_echo = {
+            "lookback": lookback, "entry": entry, "exit": exit_,
+            "initial": initial, "fee": fee, "slippage": slippage,
+            "rfr": rfr, "sizer": sizer,
+            "max_position_weight": max_position_weight,
+            "cash_buffer": cash_buffer, "split_ratio": split_ratio,
+        }
+        return {
+            "pair": {"a": a, "b": b},
+            "split": {
+                "ratio": split_ratio,
+                "timestamp": split_ts.isoformat(),
+                "index": split_index,
+            },
+            "in_sample": _serialize_backtest_result(
+                a, b, is_result, is_trading, config_echo
+            ),
+            "out_of_sample": _serialize_backtest_result(
+                a, b, oos_result, oos_trading, config_echo
+            ),
+            "config": config_echo,
+        }
+
+    @app.post("/backtest/batch")
+    def backtest_batch_endpoint(req: BatchBacktestRequest) -> dict:
+        """여러 페어를 동일 파라미터로 백테스트하고 지표를 집계한다.
+
+        WHY: 단일 페어 백테스트를 반복 호출하지 않고도 여러 가설을
+             한 번에 비교할 수 있게 한다. 집계는 평균 total_return / sharpe
+             로 단순 요약만 제공하며 각 페어별 전체 결과도 함께 반환한다.
+             실패한 페어는 error 필드로 보고하고 집계에서 제외한다.
+        """
+        config = BacktestConfig(
+            initial_capital=Decimal(str(req.initial)),
+            fee_rate=Decimal(str(req.fee)),
+            slippage_bps=Decimal(str(req.slippage)),
+            risk_free_rate=Decimal(str(req.rfr)),
+        )
+        sizer_instance = _build_sizer(req.sizer, req.max_position_weight, req.cash_buffer)
+        engine = InMemoryBacktestEngine(sizer=sizer_instance)
+        signal_config = PairSignalConfig(
+            entry_threshold=req.entry,
+            exit_threshold=req.exit,
+            lookback_window=req.lookback,
+        )
+
+        per_pair: list[dict] = []
+        success_returns: list[float] = []
+        success_sharpes: list[float] = []
+
+        for pair_ref in req.pairs:
+            try:
+                result = _run_single_pair_backtest(
+                    pair_ref.a, pair_ref.b, repository, engine, config,
+                    signal_config, req.lookback,
+                )
+            except HTTPException as exc:
+                per_pair.append({
+                    "pair": {"a": pair_ref.a, "b": pair_ref.b},
+                    "error": exc.detail,
+                })
+                continue
+
+            metrics = result.metrics
+            per_pair.append({
+                "pair": {"a": pair_ref.a, "b": pair_ref.b},
+                "metrics": {
+                    "total_return": float(metrics.total_return),
+                    "sharpe": metrics.sharpe,
+                    "sortino": metrics.sortino,
+                    "calmar": metrics.calmar,
+                    "max_drawdown": float(metrics.max_drawdown),
+                    "win_rate": metrics.win_rate,
+                },
+                "trade_count": len(result.trades),
+            })
+            success_returns.append(float(metrics.total_return))
+            success_sharpes.append(metrics.sharpe)
+
+        aggregate: dict = {
+            "pair_count": len(req.pairs),
+            "success_count": len(success_returns),
+        }
+        if success_returns:
+            aggregate["avg_total_return"] = sum(success_returns) / len(success_returns)
+            aggregate["avg_sharpe"] = sum(success_sharpes) / len(success_sharpes)
+        return {"aggregate": aggregate, "results": per_pair}
+
     @app.post("/portfolio/compute", response_model=ComputeWeightsResponse)
     def compute_weights_endpoint(req: ComputeWeightsRequest) -> ComputeWeightsResponse:
         """시그널과 전략을 받아 목표 비중을 계산하고 반환한다.
@@ -446,6 +646,48 @@ def create_app(
         )
 
     return app
+
+
+def _run_single_pair_backtest(
+    a: str,
+    b: str,
+    repository: PriceRepository,
+    engine: InMemoryBacktestEngine,
+    config: BacktestConfig,
+    signal_config: PairSignalConfig,
+    lookback: int,
+):
+    """단일 페어의 신호 생성 + 백테스트 엔진 실행을 수행한다.
+
+    WHY: /backtest/pair 와 /backtest/batch 가 공유하는 로직을 한 곳에 모은다.
+         실패 경로는 HTTPException 으로 통일해 호출자가 일관되게 처리한다.
+    """
+    ticker_a, ticker_b = _resolve_tickers(a, b)
+    series_a = repository.load(ticker_a)
+    if series_a is None:
+        raise HTTPException(status_code=404, detail=f"{a}: 가격 시계열 없음")
+    series_b = repository.load(ticker_b)
+    if series_b is None:
+        raise HTTPException(status_code=404, detail=f"{b}: 가격 시계열 없음")
+
+    common_dates, prices_a, prices_b = _intersect_series(series_a, series_b)
+    if len(common_dates) < lookback + 1:
+        raise HTTPException(
+            status_code=400,
+            detail=f"교집합 길이({len(common_dates)})가 lookback({lookback})+1 보다 짧습니다.",
+        )
+
+    timestamps = [
+        datetime(d.year, d.month, d.day, tzinfo=timezone.utc) for d in common_dates
+    ]
+    pair = Pair(a=a, b=b)
+    signal_source = PairTradingSignalSource(
+        pairs=[pair], timestamps=timestamps, config=signal_config,
+    )
+    trading_signals = signal_source.generate({a: prices_a, b: prices_b})
+    backtest_signals = [trading_signal_to_backtest_signal(ts) for ts in trading_signals]
+    price_history = _build_price_history(a, b, timestamps, prices_a, prices_b)
+    return engine.run(backtest_signals, price_history, config)
 
 
 def _build_sizer(
