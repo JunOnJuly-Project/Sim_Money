@@ -128,6 +128,7 @@ docker compose up
 | M4 S4 | Walk-forward IS/OOS UI 토글 + /batch 페이지 신설 (페어 add/remove, 집계 카드, 결과 테이블). 497 GREEN, 10 KEPT | ✅ | feature/ui/walk-forward-and-batch (main `e66fc7f`) |
 | M4 S6 | /batch 정렬/필터(실패 숨김) + CSV 내보내기 | ✅ | feature/backtest/walk-forward-kfold |
 | M4 S5 | /backtest/pair/{a}/{b}/walk-forward-kfold — folds=k, k-1 rolling 폴드 + IS/OOS 평균 집계. 499 GREEN, 10 KEPT | ✅ | feature/backtest/walk-forward-kfold |
+| M5 S1 | ADR-006 + risk 도메인 값 객체 (PositionSnapshot, RiskContext, Allow/BlockNew/ForceClose). 515 GREEN, 10 KEPT | ✅ | feature/risk/domain-value-objects |
 
 ### 🔴 블로커
 없음
