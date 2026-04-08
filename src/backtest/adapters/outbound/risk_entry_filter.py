@@ -54,6 +54,7 @@ class RiskEntryFilter:
                 daily_start_equity=self._session.daily_start_equity or equity,
                 candidate_symbol=candidate.ticker,
                 candidate_notional=notional,
+                available_cash=available_cash,
             )
             decisions = self._evaluator.evaluate(ctx)
             if all(isinstance(d, Allow) for d in decisions):
