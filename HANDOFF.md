@@ -125,6 +125,9 @@ docker compose up
 | M4 S1 | /similar strategy 스위치 (weighted_sum/spearman/cointegration) + 탐색 UI 셀렉트 + CLAUDE.md L3 매핑 정정. 493 GREEN, 10 KEPT | ✅ | feature/similarity/strategy-switch |
 | M4 S2 | /backtest/pair/{a}/{b}/walk-forward 엔드포인트 — split_ratio 단일 분할 IS/OOS 백테스트. 495 GREEN, 10 KEPT | ✅ | feature/backtest/walk-forward |
 | M4 S3 | POST /backtest/batch — 다중 페어 배치 백테스트 + 평균 집계. 497 GREEN, 10 KEPT | ✅ | feature/backtest/batch |
+| M4 S4 | Walk-forward IS/OOS UI 토글 + /batch 페이지 신설 (페어 add/remove, 집계 카드, 결과 테이블). 497 GREEN, 10 KEPT | ✅ | feature/ui/walk-forward-and-batch (main `e66fc7f`) |
+| M4 S6 | /batch 정렬/필터(실패 숨김) + CSV 내보내기 | ✅ | feature/backtest/walk-forward-kfold |
+| M4 S5 | /backtest/pair/{a}/{b}/walk-forward-kfold — folds=k, k-1 rolling 폴드 + IS/OOS 평균 집계. 499 GREEN, 10 KEPT | ✅ | feature/backtest/walk-forward-kfold |
 
 ### 🔴 블로커
 없음
@@ -133,14 +136,8 @@ docker compose up
 
 | 우선순위 | 슬라이스 | 설명 | 브랜치 |
 |---------|---------|------|--------|
-| ✅ | M2 S1 | `SpearmanStrategy` (main `bbeff9c`) | 완료 |
-| ✅ | M2 S2 | `CointegrationStrategy` (Engle-Granger, numpy-only ADF) | 완료 (`043d609`) |
-| ✅ | M2 S3 | `backtest` L3 스켈레톤 (main `bf74ef6`) | 완료 |
-| ✅ | M2 S4 | `backtest` L3 실구현 (main `e203650`) | 완료 |
-| ✅ | M2 S4.5 | ADR-003 + Signal.strength Decimal 마이그레이션 (main `1b12aa2`) | 완료 |
-| ✅ | M2 S5 | trading_signal L3 — PairTradingSignalSource (335 GREEN, 99%, 7 KEPT) | `feature/signal/pair-trading-source` (현재) |
-| 1 | M2 S6 | 백테스트 웹 대시보드 UI (equity_curve/trades/metrics 시각화, FastAPI /backtest 엔드포인트) | `feature/web/backtest-dashboard` |
-| 이월 | M3 | Sharpe 정식 구현 (무위험수익률, 등간격 보장) | M3 |
+| 1 | M5 계획 | `/plan` 으로 리스크 관리 vs 실시간 데이터 파이프라인 브레인스토밍 | - |
+| 2 | M4 S7 | k-fold UI (folds 입력 + 폴드별 카드 표시) | `feature/web/walk-forward-kfold-ui` |
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
 M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)

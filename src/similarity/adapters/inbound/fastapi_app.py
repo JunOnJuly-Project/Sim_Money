@@ -533,6 +533,124 @@ def create_app(
             "config": config_echo,
         }
 
+    @app.get("/backtest/pair/{a}/{b}/walk-forward-kfold")
+    def backtest_walk_forward_kfold_endpoint(
+        a: str,
+        b: str,
+        lookback: int = Query(_BACKTEST_DEFAULT_LOOKBACK),
+        entry: float = Query(_BACKTEST_DEFAULT_ENTRY),
+        exit_: float = Query(_BACKTEST_DEFAULT_EXIT, alias="exit"),
+        initial: float = Query(_BACKTEST_DEFAULT_INITIAL),
+        fee: float = Query(_BACKTEST_DEFAULT_FEE),
+        slippage: float = Query(_BACKTEST_DEFAULT_SLIPPAGE),
+        rfr: float = Query(_BACKTEST_DEFAULT_RFR, ge=0.0, le=1.0),
+        sizer: Literal["strength", "equal_weight", "score_weighted"] = Query(
+            _SIZER_STRENGTH
+        ),
+        max_position_weight: float = Query(
+            _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT, gt=0.0, le=1.0
+        ),
+        cash_buffer: float = Query(
+            _BACKTEST_DEFAULT_CASH_BUFFER, ge=0.0, lt=1.0
+        ),
+        folds: int = Query(
+            3, ge=2, le=10,
+            description="타임라인을 k 등분한 후 rolling 하게 k-1 개 폴드를 생성.",
+        ),
+    ) -> dict:
+        """Walk-forward 다중 폴드: 타임라인을 k 등분하고 인접 segment 쌍으로 k-1 폴드 생성.
+
+        WHY: 단일 split 대비 과적합 탐지력을 높인다. fold i = (IS=seg_i, OOS=seg_{i+1})
+             로 정의하며 각 폴드의 IS/OOS 지표를 평균해 변동성을 가늠한다.
+        """
+        ticker_a, ticker_b = _resolve_tickers(a, b)
+        series_a = repository.load(ticker_a)
+        if series_a is None:
+            raise HTTPException(status_code=404, detail=f"{a}: 가격 시계열 없음")
+        series_b = repository.load(ticker_b)
+        if series_b is None:
+            raise HTTPException(status_code=404, detail=f"{b}: 가격 시계열 없음")
+
+        common_dates, prices_a, prices_b = _intersect_series(series_a, series_b)
+        if len(common_dates) < lookback + folds + 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"교집합 길이({len(common_dates)})가 lookback({lookback})+folds({folds})+1 보다 짧습니다.",
+            )
+
+        timestamps = [
+            datetime(d.year, d.month, d.day, tzinfo=timezone.utc) for d in common_dates
+        ]
+        pair = Pair(a=a, b=b)
+        signal_config = PairSignalConfig(
+            entry_threshold=entry, exit_threshold=exit_, lookback_window=lookback,
+        )
+        signal_source = PairTradingSignalSource(
+            pairs=[pair], timestamps=timestamps, config=signal_config,
+        )
+        trading_signals = signal_source.generate({a: prices_a, b: prices_b})
+        backtest_signals = [trading_signal_to_backtest_signal(ts) for ts in trading_signals]
+        price_history = _build_price_history(a, b, timestamps, prices_a, prices_b)
+        config = BacktestConfig(
+            initial_capital=Decimal(str(initial)),
+            fee_rate=Decimal(str(fee)),
+            slippage_bps=Decimal(str(slippage)),
+            risk_free_rate=Decimal(str(rfr)),
+        )
+        sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
+        engine = InMemoryBacktestEngine(sizer=sizer_instance)
+
+        # WHY: k 등분 경계 인덱스. int 캐스팅으로 마지막 segment 가 약간 길어질 수 있음.
+        n = len(timestamps)
+        boundaries = [int(n * i / folds) for i in range(folds + 1)]
+        boundaries[-1] = n
+
+        fold_results: list[dict] = []
+        is_returns: list[float] = []
+        oos_returns: list[float] = []
+        is_sharpes: list[float] = []
+        oos_sharpes: list[float] = []
+
+        for i in range(folds - 1):
+            is_start, is_end = boundaries[i], boundaries[i + 1]
+            oos_start, oos_end = boundaries[i + 1], boundaries[i + 2]
+            is_lo, is_hi = timestamps[is_start], timestamps[is_end - 1]
+            oos_lo, oos_hi = timestamps[oos_start], timestamps[oos_end - 1]
+
+            is_sigs = [s for s in backtest_signals if is_lo <= s.timestamp <= is_hi]
+            oos_sigs = [s for s in backtest_signals if oos_lo <= s.timestamp <= oos_hi]
+            is_trading = [t for t in trading_signals if is_lo <= t.timestamp <= is_hi]
+            oos_trading = [t for t in trading_signals if oos_lo <= t.timestamp <= oos_hi]
+
+            is_result = engine.run(is_sigs, price_history, config)
+            oos_result = engine.run(oos_sigs, price_history, config)
+
+            fold_results.append({
+                "fold": i,
+                "in_sample": _serialize_backtest_result(a, b, is_result, is_trading, {}),
+                "out_of_sample": _serialize_backtest_result(a, b, oos_result, oos_trading, {}),
+            })
+            is_returns.append(float(is_result.metrics.total_return))
+            oos_returns.append(float(oos_result.metrics.total_return))
+            is_sharpes.append(is_result.metrics.sharpe)
+            oos_sharpes.append(oos_result.metrics.sharpe)
+
+        def _avg(xs: list[float]) -> float:
+            return sum(xs) / len(xs) if xs else 0.0
+
+        return {
+            "pair": {"a": a, "b": b},
+            "folds": folds,
+            "fold_count": len(fold_results),
+            "aggregate": {
+                "avg_is_total_return": _avg(is_returns),
+                "avg_oos_total_return": _avg(oos_returns),
+                "avg_is_sharpe": _avg(is_sharpes),
+                "avg_oos_sharpe": _avg(oos_sharpes),
+            },
+            "results": fold_results,
+        }
+
     @app.post("/backtest/batch")
     def backtest_batch_endpoint(req: BatchBacktestRequest) -> dict:
         """여러 페어를 동일 파라미터로 백테스트하고 지표를 집계한다.
