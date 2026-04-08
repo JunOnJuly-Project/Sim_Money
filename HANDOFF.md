@@ -122,6 +122,9 @@ docker compose up
 | M3 S14 | Sortino·Calmar 리스크 지표 추가 + API 응답 노출. 482 GREEN, 10 KEPT | ✅ | feature/backtest/sortino-calmar |
 | M3 S15 | PlanRebalance 제약 사후 검증 (max_position_weight / cash_buffer → ConstraintViolation). 485 GREEN, 10 KEPT | ✅ | feature/portfolio/plan-constraints |
 | M3 S16 | UI/API 마무리: Sortino·Calmar 메트릭 카드, /portfolio/rebalance 제약 파라미터, 골든 케이스 Sortino/Calmar 회귀. 490 GREEN, 10 KEPT | ✅ | feature/ui/metrics-and-constraints |
+| M4 S1 | /similar strategy 스위치 (weighted_sum/spearman/cointegration) + 탐색 UI 셀렉트 + CLAUDE.md L3 매핑 정정. 493 GREEN, 10 KEPT | ✅ | feature/similarity/strategy-switch |
+| M4 S2 | /backtest/pair/{a}/{b}/walk-forward 엔드포인트 — split_ratio 단일 분할 IS/OOS 백테스트. 495 GREEN, 10 KEPT | ✅ | feature/backtest/walk-forward |
+| M4 S3 | POST /backtest/batch — 다중 페어 배치 백테스트 + 평균 집계. 497 GREEN, 10 KEPT | ✅ | feature/backtest/batch |
 
 ### 🔴 블로커
 없음
