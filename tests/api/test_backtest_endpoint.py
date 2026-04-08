@@ -371,6 +371,26 @@ class TestBacktestEndpoint_포트폴리오_제약:
         assert "metrics" in response.json()
 
 
+class TestBacktestEndpoint_score_weighted_사이저:
+    """sizer=score_weighted 가 PortfolioPositionSizer(ScoreWeightedStrategy) 를 조립하는지 검증한다."""
+
+    def test_sizer_score_weighted_200_응답(self) -> None:
+        """WHY: score_weighted 선택 시 ScoreWeightedStrategy 가 조립되어
+               백테스트가 정상 동작하는지 HTTP 계층까지 검증한다.
+        """
+        series_a = _make_price_series("AAA", n=30, start_price=100.0)
+        series_b = _make_price_series("BBB", n=30, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get("/backtest/pair/AAA/BBB?sizer=score_weighted")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert "metrics" in body
+        assert "trades" in body
+        assert "equity_curve" in body
+
+
 class TestBacktestEndpoint_rfr_파라미터:
     """rfr 쿼리 파라미터가 BacktestConfig 에 올바르게 주입되는지 검증한다."""
 
