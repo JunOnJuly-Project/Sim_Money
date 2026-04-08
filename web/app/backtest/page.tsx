@@ -3,6 +3,7 @@
 // WHY: fetch, useState, useEffect 등 클라이언트 훅을 직접 사용하므로 "use client" 필수.
 import { useState, FormEvent } from "react";
 import BacktestResult, { BacktestResponse } from "./BacktestResult";
+import Link from "next/link";
 import SymbolPicker from "../_components/SymbolPicker";
 import ParamHelp from "../_components/ParamHelp";
 
@@ -204,11 +205,14 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
 
       {/* 자본/비용 파라미터 */}
       <div className="grid grid-cols-3 gap-3">
+        {/* WHY: HTML number input 의 step 검증은 min 부터 step 배수만 유효로 간주한다.
+                 기존 min=1,step=1000 조합은 1,1001,2001...만 허용해 10,000,000 이 막혔다.
+                 min=0 으로 두면 1000 단위 자연스러운 값 전부 유효. */}
         <NumberInputRow
-          label="초기 자본"
+          label="초기 자본 (KRW)"
           value={form.initial}
           step={1000}
-          min={1}
+          min={0}
           onChange={(v) => onChange({ initial: v })}
         />
         <NumberInputRow
@@ -450,6 +454,32 @@ export default function BacktestPage() {
       {/* ADR-000: 개인 전용 고지 문구 — 최상단 필수 */}
       <DisclaimerBanner />
 
+      {/* 내비게이션 — 다른 도구로 이동 */}
+      <div className="flex gap-3">
+        <Link
+          href="/"
+          className="rounded-md border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
+          style={{
+            borderColor: "var(--border)",
+            color: "var(--muted)",
+            backgroundColor: "var(--card-bg)",
+          }}
+        >
+          ← 홈 (유사종목 탐색)
+        </Link>
+        <Link
+          href="/rebalance"
+          className="rounded-md border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
+          style={{
+            borderColor: "var(--accent)",
+            color: "var(--accent)",
+            backgroundColor: "rgba(56,189,248,0.08)",
+          }}
+        >
+          리밸런싱 플래너 →
+        </Link>
+      </div>
+
       <ParamHelp />
 
       {/* 헤더 */}
@@ -467,6 +497,46 @@ export default function BacktestPage() {
         className="rounded-lg border p-6"
         style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
       >
+        {/* WHY: 두 검증 모드는 초보 사용자에게 낯설다. 접이식 설명 박스로 가이드 제공 */}
+        <details
+          className="mb-3 rounded border text-xs"
+          style={{ borderColor: "var(--border)", backgroundColor: "rgba(56,189,248,0.04)" }}
+        >
+          <summary
+            className="cursor-pointer px-3 py-2 font-medium"
+            style={{ color: "var(--accent)" }}
+          >
+            ℹ 검증 모드 가이드 — Walk-forward / k-fold 는 언제 켜나요?
+          </summary>
+          <div
+            className="flex flex-col gap-2 px-3 py-2 leading-relaxed"
+            style={{ color: "var(--muted)" }}
+          >
+            <p>
+              <b style={{ color: "var(--foreground)" }}>기본(둘 다 OFF)</b> — 전체 기간을 한 번에
+              백테스트. 빠르게 감을 잡을 때 사용합니다. 과최적화(overfitting) 여부는 확인 불가.
+            </p>
+            <p>
+              <b style={{ color: "var(--foreground)" }}>Walk-forward (IS/OOS 분할)</b> —
+              데이터를 앞쪽 In-sample(학습 가정) 과 뒤쪽 Out-of-sample(검증) 로 한 번 자릅니다.
+              <code className="mx-1 font-mono">split_ratio=0.7</code> 이면 앞 70% 로 성과를 본 뒤
+              나머지 30% 에서 같은 설정이 실제로 먹히는지 확인. IS 에서 좋지만 OOS 에서 무너지면
+              해당 파라미터는 과최적화일 가능성이 높습니다.
+            </p>
+            <p>
+              <b style={{ color: "var(--foreground)" }}>k-fold rolling</b> — 데이터를{" "}
+              <code className="mx-1 font-mono">folds</code> 개 구간으로 나누고 각 구간마다
+              앞을 학습·뒤를 검증으로 굴리면서 반복. IS/OOS 평균이 한 번의 분할보다 안정적이라
+              통계적 신뢰도가 높지만 실행 시간이 folds 배로 증가합니다. 최종 파라미터를 고를 때 사용.
+            </p>
+            <p>
+              <b style={{ color: "var(--foreground)" }}>추천 순서</b> — ① 기본으로 탐색 → ②
+              후보 파라미터에 Walk-forward 로 빠른 검증 → ③ 최종 후보에 k-fold(3~5) 로 확정.
+              두 모드는 상호 배타이며 동시에 켤 수 없습니다.
+            </p>
+          </div>
+        </details>
+
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground)" }}>
             <input

@@ -523,17 +523,77 @@ export default function RebalancePage() {
           리밸런싱 플래너
         </h1>
         <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Sim Money M3 — 현재 포지션과 목표 비중을 입력해 주문 계획을 생성합니다
+          현재 보유 종목과 가고 싶은 목표 비중을 입력하면, 그 차이를 매수/매도 주문 계획으로
+          바꿔줍니다.
         </p>
       </div>
 
+      {/* 사용 가이드 — 초보 사용자를 위한 단계별 설명 */}
+      <details
+        className="rounded-lg border"
+        style={{ borderColor: "var(--accent)", backgroundColor: "rgba(56,189,248,0.04)" }}
+      >
+        <summary
+          className="cursor-pointer px-4 py-3 text-sm font-medium"
+          style={{ color: "var(--accent)" }}
+        >
+          ℹ 처음이신가요? — 리밸런싱 플래너 사용법
+        </summary>
+        <div
+          className="flex flex-col gap-3 px-4 py-3 text-xs leading-relaxed"
+          style={{ color: "var(--muted)" }}
+        >
+          <p>
+            <b style={{ color: "var(--foreground)" }}>리밸런싱이란?</b> 현재 계좌 상태와 원하는 배분
+            사이의 차이를 좁히는 매매 계획입니다. 예: 삼성전자 60%/카카오 40% 를 원하는데 실제로는
+            80/20 이면 삼성전자 일부를 팔고 카카오를 사야 합니다. 이 도구는 그 주문을 대신 계산합니다.
+          </p>
+          <div className="flex flex-col gap-2">
+            <p>
+              <b style={{ color: "var(--foreground)" }}>① 현재 포지션</b> — 지금 갖고 있는 종목과
+              수량·시장가치를 입력합니다. 시장가치 = 수량 × 현재가.
+            </p>
+            <p>
+              <b style={{ color: "var(--foreground)" }}>② 목표 가중치</b> — 최종적으로 원하는 비중을
+              0~1 사이 소수로 입력. 모든 목표 비중의 합은 1.0 이하여야 합니다(남는 건 현금).
+            </p>
+            <p>
+              <b style={{ color: "var(--foreground)" }}>③ 실행 파라미터</b> — 총 자본(현금 포함)과
+              선택 제약을 설정합니다.
+            </p>
+            <p>
+              <b style={{ color: "var(--foreground)" }}>④ 플랜 생성</b> 버튼을 누르면 종목별로 몇 %
+              를 더 사거나(BUY) 팔아야(SELL) 하는지 주문 의도 목록이 나옵니다.
+            </p>
+          </div>
+          <p className="text-[11px]">
+            💡 제안: 먼저 홈에서 유사 종목을 찾아보고 → 백테스트로 전략을 검증한 뒤 → 여기서 실제
+            계좌의 리밸런싱 주문을 계획하는 흐름을 권장합니다.
+          </p>
+        </div>
+      </details>
+
       {/* 입력 폼 */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* 현재 포지션 */}
+        {/* 단계 1: 현재 포지션 */}
         <section
           className="rounded-lg border p-6"
           style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
         >
+          <div className="mb-3 flex items-baseline gap-2">
+            <span
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+              style={{ backgroundColor: "var(--accent)", color: "#0f172a" }}
+            >
+              1
+            </span>
+            <h2 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
+              현재 보유 종목
+            </h2>
+            <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+              — 내가 지금 갖고 있는 포지션
+            </span>
+          </div>
           <PositionTable
             rows={positions}
             onAdd={addPosition}
@@ -542,11 +602,25 @@ export default function RebalancePage() {
           />
         </section>
 
-        {/* 목표 가중치 */}
+        {/* 단계 2: 목표 가중치 */}
         <section
           className="rounded-lg border p-6"
           style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
         >
+          <div className="mb-3 flex items-baseline gap-2">
+            <span
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+              style={{ backgroundColor: "var(--accent)", color: "#0f172a" }}
+            >
+              2
+            </span>
+            <h2 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
+              목표 비중
+            </h2>
+            <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+              — 최종적으로 원하는 포트폴리오 (합 ≤ 1.0)
+            </span>
+          </div>
           <TargetTable
             rows={targets}
             onAdd={addTarget}
@@ -555,20 +629,37 @@ export default function RebalancePage() {
           />
         </section>
 
-        {/* 전역 파라미터 */}
+        {/* 단계 3: 전역 파라미터 */}
         <section
           className="rounded-lg border p-6"
           style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
         >
+          <div className="mb-3 flex items-baseline gap-2">
+            <span
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+              style={{ backgroundColor: "var(--accent)", color: "#0f172a" }}
+            >
+              3
+            </span>
+            <h2 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
+              실행 파라미터
+            </h2>
+            <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+              — 총 자본과 선택 제약
+            </span>
+          </div>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                총 자본 (total_equity)
+                총 자본 (KRW)
               </label>
+              <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                현금까지 포함한 계좌 전체 금액. 목표 비중은 이 값의 비율로 계산됩니다.
+              </p>
               <input
                 type="number"
                 min={0}
-                step={1}
+                step={1000}
                 value={totalEquity}
                 onChange={(e) => setTotalEquity(Number(e.target.value))}
                 className="rounded-md border px-3 py-2 text-sm"
@@ -581,8 +672,11 @@ export default function RebalancePage() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                max_position_weight (선택, 비우면 제약 없음)
+                단일 종목 최대 비중 (선택)
               </label>
+              <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                한 종목이 차지할 수 있는 상한. 비우면 제약 없음. 예: 0.3 = 최대 30%.
+              </p>
               <input
                 type="number"
                 min={0}
@@ -601,8 +695,11 @@ export default function RebalancePage() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                cash_buffer (선택, 비우면 제약 없음)
+                현금 버퍼 (선택)
               </label>
+              <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                총 자본 중 투자하지 않고 남겨둘 현금 비율. 예: 0.1 = 10% 는 현금 유지.
+              </p>
               <input
                 type="number"
                 min={0}
@@ -621,8 +718,11 @@ export default function RebalancePage() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                최소 거래 비중 (min_trade_weight)
+                최소 거래 비중
               </label>
+              <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                이 값보다 작은 변화는 무시합니다(잔돈 주문 방지). 예: 0.01 = 1% 미만 변화는 건너뜀.
+              </p>
               <input
                 type="number"
                 min={0}
