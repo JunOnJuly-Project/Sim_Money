@@ -7,7 +7,7 @@ import BacktestResult, { BacktestResponse } from "./BacktestResult";
 // ── 타입 정의 ──────────────────────────────────────────────────────────────
 
 /** 포지션 사이징 방식 선택지 */
-type SizerType = "strength" | "equal_weight";
+type SizerType = "strength" | "equal_weight" | "score_weighted";
 
 /** 백테스트 폼 입력 상태 */
 interface BacktestForm {

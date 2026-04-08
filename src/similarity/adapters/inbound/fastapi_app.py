@@ -61,6 +61,7 @@ _MIN_INTERSECTION_SIZE = 2
 # PositionSizer 선택 리터럴 타입 — 확장 시 여기에 추가
 _SIZER_STRENGTH = "strength"
 _SIZER_EQUAL_WEIGHT = "equal_weight"
+_SIZER_SCORE_WEIGHTED = "score_weighted"
 
 # 리밸런싱 엔드포인트 기본값 상수
 _MIN_TRADE_WEIGHT_DEFAULT = 0.01
@@ -233,8 +234,9 @@ def create_app(
         fee: float = Query(_BACKTEST_DEFAULT_FEE),
         slippage: float = Query(_BACKTEST_DEFAULT_SLIPPAGE),
         rfr: float = Query(_BACKTEST_DEFAULT_RFR, ge=0.0, le=1.0, description="연환산 무위험 수익률"),
-        sizer: Literal["strength", "equal_weight"] = Query(
-            _SIZER_STRENGTH, description="포지션 사이징 방식 (strength: 신호 강도 비례, equal_weight: 균등 비중)"
+        sizer: Literal["strength", "equal_weight", "score_weighted"] = Query(
+            _SIZER_STRENGTH,
+            description="포지션 사이징 방식 (strength: 신호 강도 비례, equal_weight: 균등 비중, score_weighted: 스코어 가중)",
         ),
         max_position_weight: float = Query(
             _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT,
@@ -360,16 +362,16 @@ def _build_sizer(
     """사이저 이름으로 PositionSizer 인스턴스를 생성한다.
 
     WHY: 조립 루트(어댑터)에서만 L3 모듈 간 조립을 허용한다.
-         equal_weight 선택 시 portfolio L3 모듈을 import 해 조립하고,
+         equal_weight/score_weighted 선택 시 portfolio L3 모듈을 import 해 조립하고,
          strength(기본값)는 None 을 반환해 InMemoryTradeExecutor 기본값을 사용한다.
          import 를 함수 내부로 한정해 strength 선택 시 portfolio 의존을 제거한다.
-         max_position_weight/cash_buffer 는 equal_weight 시에만 의미 있으며
-         다른 사이저에서는 무시된다 (경고 로그 없음 — 클라이언트 책임).
+         max_position_weight/cash_buffer 는 portfolio 사이저 선택 시에만 의미 있으며
+         strength 에서는 무시된다 (경고 로그 없음 — 클라이언트 책임).
 
     Args:
-        sizer_name: "strength" 또는 "equal_weight"
-        max_position_weight: 최대 포지션 비중 (0~1). equal_weight 전용.
-        cash_buffer: 현금 버퍼 비율 (0~1). equal_weight 전용.
+        sizer_name: "strength", "equal_weight", 또는 "score_weighted"
+        max_position_weight: 최대 포지션 비중 (0~1). portfolio 사이저 전용.
+        cash_buffer: 현금 버퍼 비율 (0~1). portfolio 사이저 전용.
 
     Returns:
         PositionSizer 인스턴스, 또는 기본값 사용 시 None
@@ -383,6 +385,15 @@ def _build_sizer(
             cash_buffer=Decimal(str(cash_buffer)),
         )
         return PortfolioPositionSizer(EqualWeightStrategy(), constraints)
+    if sizer_name == _SIZER_SCORE_WEIGHTED:
+        from portfolio.adapters.outbound.score_weighted_strategy import ScoreWeightedStrategy
+        from portfolio.domain.constraints import PortfolioConstraints
+        from backtest.adapters.outbound.portfolio_position_sizer import PortfolioPositionSizer
+        constraints = PortfolioConstraints(
+            max_position_weight=Decimal(str(max_position_weight)),
+            cash_buffer=Decimal(str(cash_buffer)),
+        )
+        return PortfolioPositionSizer(ScoreWeightedStrategy(), constraints)
     # strength: 기본 StrengthPositionSizer 사용 — None 반환으로 기존 동작 유지
     return None
 
