@@ -439,6 +439,35 @@ class TestBacktestEndpoint_rfr_파라미터:
             assert sharpe_default != sharpe_custom
 
 
+class TestBacktestEndpoint_risk_파라미터:
+    """risk_* 쿼리 파라미터가 RiskEntryFilter 를 조립해 가드를 활성화하는지 검증한다 (M5 S12)."""
+
+    def test_risk_파라미터_없으면_기본_동작(self) -> None:
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+        response = client.get("/backtest/pair/AAA/BBB")
+        assert response.status_code == 200
+        body = response.json()
+        # WHY: 기본 None 이면 config 에코에 None 으로 노출되어 UI 가 비활성 표시 가능
+        assert body["config"]["risk_position_limit"] is None
+        assert body["config"]["risk_max_drawdown"] is None
+        assert body["config"]["risk_daily_loss"] is None
+
+    def test_risk_파라미터_지정_시_config_에코에_반영(self) -> None:
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+        response = client.get(
+            "/backtest/pair/AAA/BBB?risk_position_limit=0.5&risk_max_drawdown=0.2&risk_daily_loss=0.05"
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["config"]["risk_position_limit"] == 0.5
+        assert body["config"]["risk_max_drawdown"] == 0.2
+        assert body["config"]["risk_daily_loss"] == 0.05
+
+
 class TestBacktestWalkForward:
     """/backtest/pair/{a}/{b}/walk-forward 엔드포인트 통합 테스트 (M4 S2)."""
 

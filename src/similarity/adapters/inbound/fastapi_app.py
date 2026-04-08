@@ -336,6 +336,18 @@ def create_app(
             lt=1.0,
             description="현금 버퍼 비율 (0~1). equal_weight 사이저 선택 시에만 적용.",
         ),
+        risk_position_limit: float | None = Query(
+            None, gt=0.0, le=1.0,
+            description="리스크 가드: 단일 심볼 최대 비중. 미지정 시 비활성.",
+        ),
+        risk_max_drawdown: float | None = Query(
+            None, gt=0.0, le=1.0,
+            description="리스크 가드: 누적 DD 한도. 초과 시 신규 진입 차단.",
+        ),
+        risk_daily_loss: float | None = Query(
+            None, gt=0.0, le=1.0,
+            description="리스크 가드: 당일 손실 한도.",
+        ),
     ) -> dict:
         """페어 백테스트를 실행하고 결과를 반환한다.
 
@@ -403,7 +415,10 @@ def create_app(
         #      InMemoryBacktestEngine.sizer 파라미터로 전달해 RunBacktest 에 위임한다.
         #      max_position_weight/cash_buffer 는 equal_weight 선택 시에만 의미 있다.
         sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
-        engine = InMemoryBacktestEngine(sizer=sizer_instance)
+        risk_filter = _build_risk_filter(
+            risk_position_limit, risk_max_drawdown, risk_daily_loss,
+        )
+        engine = InMemoryBacktestEngine(sizer=sizer_instance, entry_filter=risk_filter)
         result = engine.run(backtest_signals, price_history, config)
 
         # 9. 응답 직렬화 — 사용된 설정을 echo 로 포함해 UI 가 실행 조건을 표시할 수 있게 한다
@@ -418,6 +433,9 @@ def create_app(
             "sizer": sizer,
             "max_position_weight": max_position_weight,
             "cash_buffer": cash_buffer,
+            "risk_position_limit": risk_position_limit,
+            "risk_max_drawdown": risk_max_drawdown,
+            "risk_daily_loss": risk_daily_loss,
         }
         return _serialize_backtest_result(a, b, result, trading_signals, config_echo)
 
@@ -806,6 +824,34 @@ def _run_single_pair_backtest(
     backtest_signals = [trading_signal_to_backtest_signal(ts) for ts in trading_signals]
     price_history = _build_price_history(a, b, timestamps, prices_a, prices_b)
     return engine.run(backtest_signals, price_history, config)
+
+
+def _build_risk_filter(
+    position_limit: float | None,
+    max_drawdown: float | None,
+    daily_loss: float | None,
+):
+    """리스크 가드 파라미터를 받아 RiskEntryFilter 를 조립한다.
+
+    WHY: 모든 파라미터가 None 이면 None 을 반환해 RunBacktest 기본 동작을 유지한다.
+         하나라도 지정되면 해당 가드만 체인에 포함한다 (선택적 활성).
+    """
+    if position_limit is None and max_drawdown is None and daily_loss is None:
+        return None
+    from backtest.adapters.outbound.risk_entry_filter import RiskEntryFilter
+    from risk.adapters.outbound import (
+        DailyLossLimitGuard,
+        DrawdownCircuitBreaker,
+        PositionLimitGuard,
+    )
+    guards = []
+    if position_limit is not None:
+        guards.append(PositionLimitGuard(max_weight=Decimal(str(position_limit))))
+    if max_drawdown is not None:
+        guards.append(DrawdownCircuitBreaker(max_drawdown=Decimal(str(max_drawdown))))
+    if daily_loss is not None:
+        guards.append(DailyLossLimitGuard(max_daily_loss=Decimal(str(daily_loss))))
+    return RiskEntryFilter(guards=guards)
 
 
 def _build_sizer(

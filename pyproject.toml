@@ -53,6 +53,9 @@ ignore_imports = [
     #      portfolio 어댑터를 직접 조립한다. L2 도메인/애플리케이션 순수성 규칙의
     #      예외이며 인바운드 어댑터(조립 루트)에서만 허용된다.
     "similarity.adapters.inbound.* -> portfolio.**",
+    # WHY: M5 S12 — /backtest/pair risk_* 쿼리로 risk 가드 어댑터를 조립.
+    #      동일하게 인바운드 조립 루트 예외.
+    "similarity.adapters.inbound.* -> risk.**",
 ]
 
 [[tool.importlinter.contracts]]
