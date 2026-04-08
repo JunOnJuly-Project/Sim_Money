@@ -464,6 +464,9 @@ export default function ExplorePage() {
   // WHY: w1=수익률상관, w2=거래량상관, w3=섹터안정성.
   //      기본값 0.5/0.3/0.2는 ADR-002 WeightedSumStrategy 기본 파라미터와 일치한다.
   const [weights, setWeights] = useState<WeightForm>({ w1: 0.5, w2: 0.3, w3: 0.2 });
+  const [strategy, setStrategy] = useState<"weighted_sum" | "spearman" | "cointegration">(
+    "weighted_sum"
+  );
 
   const [results, setResults] = useState<SimilarItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -509,6 +512,7 @@ export default function ExplorePage() {
         w1: String(weights.w1),
         w2: String(weights.w2),
         w3: String(weights.w3),
+        strategy,
       });
 
       // next.config.ts rewrites 를 통해 백엔드(localhost:8000)로 프록시된다.
@@ -593,6 +597,32 @@ export default function ExplorePage() {
         className="rounded-lg border p-6"
         style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
       >
+        <div className="mb-4 flex items-center gap-3">
+          <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+            유사도 전략
+          </label>
+          <select
+            value={strategy}
+            onChange={(e) =>
+              setStrategy(e.target.value as "weighted_sum" | "spearman" | "cointegration")
+            }
+            className="rounded-md border px-3 py-1.5 text-sm"
+            style={{
+              backgroundColor: "var(--card-bg)",
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+            }}
+          >
+            <option value="weighted_sum">weighted_sum (w1/w2/w3)</option>
+            <option value="spearman">spearman (순위상관)</option>
+            <option value="cointegration">cointegration (Engle-Granger)</option>
+          </select>
+          {strategy !== "weighted_sum" && (
+            <span className="text-xs" style={{ color: "var(--muted)" }}>
+              w1/w2/w3 는 무시됩니다
+            </span>
+          )}
+        </div>
         <ExploreForm
           form={form}
           weights={weights}

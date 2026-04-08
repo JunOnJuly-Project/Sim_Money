@@ -765,3 +765,87 @@ class TestPairEndpoint_rolling_corr_배열_불변식:
         assert rolling_values[window - 1] is not None, (
             f"index {window - 1} 는 null 이 아니어야 합니다"
         )
+
+
+# ---------------------------------------------------------------------------
+# 케이스 N: strategy 쿼리 파라미터로 전략 스위치 (M4 S1)
+# ---------------------------------------------------------------------------
+
+class TestSimilarEndpoint_전략_스위치:
+    """/similar 엔드포인트의 strategy= 쿼리 파라미터 분기 검증."""
+
+    def test_strategy_spearman_지정시_registry_에서_조회된다(self) -> None:
+        """WHY: strategy=spearman 이면 strategy_factory 가 호출되지 않고
+               registry 의 SpearmanStrategy 인스턴스가 사용된다.
+        """
+        samsung = _ticker("KRX", "005930")
+        factory = FakeStrategyFactory()
+        registry = {"spearman": FakeStrategy(fixed_score=0.42)}
+        repository = FakeRepository()
+        universe_source = FakeUniverseSource(target_ticker=samsung)
+        app = create_app(
+            repository=repository,
+            universe_source=universe_source,
+            strategy_factory=factory,
+            strategy_registry=registry,
+        )
+        client = TestClient(app)
+
+        response = client.get(
+            "/similar/005930",
+            params={
+                "market": "KRX",
+                "universe": "KOSPI200",
+                "as_of": "2025-01-01",
+                "strategy": "spearman",
+            },
+        )
+
+        assert response.status_code == 200
+        # factory 가 호출되지 않아야 한다 (registry 경로)
+        assert len(factory.recorded_weights) == 0
+
+    def test_strategy_미등록시_400_반환(self) -> None:
+        """WHY: registry 에 없는 전략 이름이면 400 으로 명시 오류."""
+        samsung = _ticker("KRX", "005930")
+        factory = FakeStrategyFactory()
+        repository = FakeRepository()
+        universe_source = FakeUniverseSource(target_ticker=samsung)
+        # registry 미주입 (None → 빈 dict)
+        app = create_app(
+            repository=repository,
+            universe_source=universe_source,
+            strategy_factory=factory,
+        )
+        client = TestClient(app)
+
+        response = client.get(
+            "/similar/005930",
+            params={
+                "market": "KRX",
+                "universe": "KOSPI200",
+                "as_of": "2025-01-01",
+                "strategy": "cointegration",
+            },
+        )
+
+        assert response.status_code == 400
+        assert "cointegration" in response.json()["detail"]
+
+    def test_strategy_미지정시_기본값_weighted_sum_이_사용된다(self) -> None:
+        """WHY: 기존 호출부는 strategy 쿼리 없이도 동작해야 한다 (하위 호환)."""
+        samsung = _ticker("KRX", "005930")
+        client, factory = _make_client(target_ticker=samsung)
+
+        response = client.get(
+            "/similar/005930",
+            params={
+                "market": "KRX",
+                "universe": "KOSPI200",
+                "as_of": "2025-01-01",
+            },
+        )
+
+        assert response.status_code == 200
+        # factory 가 호출됐다는 것은 weighted_sum 경로로 갔다는 증거
+        assert len(factory.recorded_weights) == 1
