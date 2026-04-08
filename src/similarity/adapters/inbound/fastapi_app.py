@@ -550,6 +550,8 @@ def _serialize_backtest_result(
             "sharpe": metrics.sharpe,
             "max_drawdown": float(metrics.max_drawdown),
             "win_rate": metrics.win_rate,
+            "sortino": metrics.sortino,
+            "calmar": metrics.calmar,
         },
         "trades": trades,
         "equity_curve": equity_curve,

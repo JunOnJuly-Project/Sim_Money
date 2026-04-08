@@ -569,3 +569,52 @@ class TestRatioPerformanceCalculator_timestamp_타입_가드:
         calc = RatioPerformanceCalculator()
         result = calc.compute(trades=[], equity_curve=equity_tz_aware)
         assert isinstance(result.sharpe, float)
+
+
+class TestRatioPerformanceCalculator_Sortino_Calmar:
+    """Sortino / Calmar 신규 지표 검증."""
+
+    def test_단조_증가_equity이면_sortino_는_0이다(self) -> None:
+        """WHY: 하방 수익률이 없으면 Sortino 분모=0 → 0.0 반환."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        calc = RatioPerformanceCalculator()
+        result = calc.compute(trades=[], equity_curve=_equity("100", "110", "120", "130"))
+        assert result.sortino == 0.0
+
+    def test_하방_변동이_있으면_sortino_가_계산된다(self) -> None:
+        """WHY: 음의 초과수익률이 2개 이상이면 Sortino 가 유한한 값으로 계산된다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        calc = RatioPerformanceCalculator()
+        # 100 → 95 → 105 → 92 → 110 (하방 2회, 상방 2회)
+        result = calc.compute(
+            trades=[], equity_curve=_equity("100", "95", "105", "92", "110")
+        )
+        assert isinstance(result.sortino, float)
+        assert math.isfinite(result.sortino)
+
+    def test_단조_증가_equity이면_calmar_는_0이다(self) -> None:
+        """WHY: MDD=0 이면 Calmar 는 정의 불가능하므로 0.0 반환."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        calc = RatioPerformanceCalculator()
+        result = calc.compute(trades=[], equity_curve=_equity("100", "110", "120"))
+        assert result.calmar == 0.0
+
+    def test_하락_equity이면_calmar_가_음수이다(self) -> None:
+        """WHY: 전체 수익률이 음수이면 Calmar = ann_return / |MDD| < 0."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        calc = RatioPerformanceCalculator()
+        result = calc.compute(trades=[], equity_curve=_equity("100", "90", "80"))
+        assert result.calmar < 0.0
+
+    def test_metrics_는_sortino_와_calmar_필드를_가진다(self) -> None:
+        """WHY: PerformanceMetrics 값 객체가 새 필드를 노출한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        calc = RatioPerformanceCalculator()
+        result = calc.compute(trades=[], equity_curve=_equity("100", "110"))
+        assert hasattr(result, "sortino")
+        assert hasattr(result, "calmar")
