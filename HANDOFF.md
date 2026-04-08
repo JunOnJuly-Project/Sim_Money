@@ -142,6 +142,7 @@ docker compose up
 | M5 S11 | PlanRebalance → PositionLimitGuard 위임 — WeightCapValidator 포트 + RiskWeightCapValidator 어댑터(equity=1, notional=weight 매핑). PlanRebalance 에 optional validator 주입, 기본 None 은 인라인 fallback 으로 회귀 0. 566 GREEN, 12 KEPT | ✅ | feature/portfolio/limit-via-risk |
 | M4 S7 | k-fold UI — `/backtest` 에 k-fold rolling 체크박스 + folds 입력 + 폴드별 IS/OOS 카드 + 평균 집계 카드 추가. wfEnabled 와 상호배타. 566 GREEN, 12 KEPT | ✅ | feature/web/walk-forward-kfold-ui |
 | M5 S14 | ExitAdvisor 포트(ADR-007) + RiskExitAdvisor(StopLossGuard 래핑) + RunBacktest 매 bar 강제 청산 통합 + `/backtest/pair?risk_stop_loss` 쿼리 + UI 손절률 입력. advisor=None 기본은 골든 회귀 0. 570 GREEN, 12 KEPT | ✅ | feature/backtest/exit-advisor |
+| M5 review-fix | 리뷰 후속 수정: (1) `backtest.*→risk` forbidden 계약 추가 (13 KEPT) (2) RiskSessionState 공유 객체로 EntryFilter/ExitAdvisor peak 추적 통합 (3) walk-forward/kfold 엔드포인트 risk_* 쿼리 전파 (4) advisor 권고 후 bar 부재 시 pending_forced 큐로 이연 청산 (5) 골든 테스트 metrics 동등성 단언 추가. 571 GREEN, 13 KEPT | ✅ | fix/m5-review-followups |
 
 ### 🔴 블로커
 없음

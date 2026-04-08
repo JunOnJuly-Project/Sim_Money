@@ -7,10 +7,11 @@ WHY: backtest.application 이 risk 도메인을 직접 import 하지 않도록 �
 
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime
 from decimal import Decimal
 from typing import Mapping, Sequence
 
+from backtest.adapters.outbound.risk_session_state import RiskSessionState
 from backtest.application.ports.exit_advisor import PositionView
 from risk.application.ports import RiskGuard
 from risk.application.use_cases import EvaluateRisk
@@ -20,11 +21,14 @@ from risk.domain import ForceClose, PositionSnapshot, RiskContext
 class RiskExitAdvisor:
     """ExitAdvisor 구현 — 가드 체인의 ForceClose 결정을 청산 심볼로 매핑한다."""
 
-    def __init__(self, guards: Sequence[RiskGuard]) -> None:
+    def __init__(
+        self,
+        guards: Sequence[RiskGuard],
+        session_state: RiskSessionState | None = None,
+    ) -> None:
         self._evaluator = EvaluateRisk(guards=guards)
-        self._peak_equity: Decimal | None = None
-        self._daily_start_equity: Decimal | None = None
-        self._current_day: date | None = None
+        # WHY: 외부에서 주입하면 RiskEntryFilter 와 동일 세션 상태를 공유한다.
+        self._session = session_state or RiskSessionState()
 
     def advise(
         self,
@@ -36,14 +40,7 @@ class RiskExitAdvisor:
         if not positions:
             return []
 
-        # 세션 peak 갱신
-        if self._peak_equity is None or equity > self._peak_equity:
-            self._peak_equity = equity
-        # 일일 경계 리셋
-        day = timestamp.date()
-        if self._current_day != day:
-            self._current_day = day
-            self._daily_start_equity = equity
+        self._session.observe(timestamp, equity)
 
         snapshots = tuple(
             PositionSnapshot(
@@ -57,8 +54,8 @@ class RiskExitAdvisor:
         ctx = RiskContext(
             timestamp=timestamp,
             equity=equity,
-            peak_equity=self._peak_equity,
-            daily_start_equity=self._daily_start_equity or equity,
+            peak_equity=self._session.peak_equity or equity,
+            daily_start_equity=self._session.daily_start_equity or equity,
             positions=snapshots,
         )
         decisions = self._evaluator.evaluate(ctx)

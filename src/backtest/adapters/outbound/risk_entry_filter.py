@@ -9,10 +9,11 @@ WHY: backtest.application 이 risk L3 도메인을 직접 import 하지 않도�
 
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime
 from decimal import Decimal
 from typing import Sequence
 
+from backtest.adapters.outbound.risk_session_state import RiskSessionState
 from backtest.domain.signal import Signal
 from risk.application.use_cases import EvaluateRisk
 from risk.application.ports import RiskGuard
@@ -22,11 +23,15 @@ from risk.domain import Allow, RiskContext
 class RiskEntryFilter:
     """EntryFilter 구현 — 가드 체인으로 후보를 축소한다."""
 
-    def __init__(self, guards: Sequence[RiskGuard]) -> None:
+    def __init__(
+        self,
+        guards: Sequence[RiskGuard],
+        session_state: RiskSessionState | None = None,
+    ) -> None:
         self._evaluator = EvaluateRisk(guards=guards)
-        self._peak_equity: Decimal | None = None
-        self._daily_start_equity: Decimal | None = None
-        self._current_day: date | None = None
+        # WHY: session_state 를 외부에서 주입하면 RiskExitAdvisor 와 동일 인스턴스를
+        #      공유해 peak/daily 추적이 단일 진실원이 된다 (review followup #2).
+        self._session = session_state or RiskSessionState()
 
     def filter(
         self,
@@ -35,14 +40,7 @@ class RiskEntryFilter:
         available_cash: Decimal,
         equity: Decimal,
     ) -> Sequence[Signal]:
-        # 세션 peak 갱신
-        if self._peak_equity is None or equity > self._peak_equity:
-            self._peak_equity = equity
-        # 일일 경계 리셋
-        day = timestamp.date()
-        if self._current_day != day:
-            self._current_day = day
-            self._daily_start_equity = equity
+        self._session.observe(timestamp, equity)
 
         allowed: list[Signal] = []
         for candidate in candidates:
@@ -52,8 +50,8 @@ class RiskEntryFilter:
             ctx = RiskContext(
                 timestamp=timestamp,
                 equity=equity,
-                peak_equity=self._peak_equity,
-                daily_start_equity=self._daily_start_equity or equity,
+                peak_equity=self._session.peak_equity or equity,
+                daily_start_equity=self._session.daily_start_equity or equity,
                 candidate_symbol=candidate.ticker,
                 candidate_notional=notional,
             )

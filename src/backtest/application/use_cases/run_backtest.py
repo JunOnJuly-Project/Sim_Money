@@ -98,12 +98,16 @@ class RunBacktest:
         else:
             all_ts = sorted(signals_by_ts.keys())
 
+        # WHY: advisor 가 ForceClose 한 심볼의 현재 bar 가 없으면 다음 사용 가능한
+        #      bar 로 청산을 이연한다. 캘린더 갭에서 silent drop 되지 않도록 한다.
+        pending_forced: set[str] = set()
+
         for ts in all_ts:
             ts_signals = signals_by_ts.get(ts, [])
             available_cash = _process_timestamp_signals(
                 ts, ts_signals, bar_index, config, available_cash,
                 open_positions, trades, self._trade_executor, self._sizer,
-                self._entry_filter, self._exit_advisor,
+                self._entry_filter, self._exit_advisor, pending_forced,
             )
             # WHY: 매 bar 처리 완료 후 mark-to-market 스냅샷을 기록한다.
             #      M2 한정: 미실현 손익 = 현재 bar close 기준 mark-to-market.
@@ -190,6 +194,7 @@ def _process_timestamp_signals(
     sizer: PositionSizer,
     entry_filter: EntryFilter | None,
     exit_advisor: ExitAdvisor | None,
+    pending_forced: set[str],
 ) -> Decimal:
     """단일 timestamp 의 신호 목록을 처리하고 갱신된 가용 현금을 반환한다.
 
@@ -210,15 +215,23 @@ def _process_timestamp_signals(
             Decimal("0"),
         )
         forced = exit_advisor.advise(ts, position_views, available_cash, equity_now)
+        # WHY: 이전 ts 에서 bar 부재로 이연된 pending 도 함께 처리한다.
+        candidates_to_force = set(forced) | pending_forced
         existing_exit_tickers = {s.ticker for s in exit_signals}
-        for symbol in forced:
-            if symbol in existing_exit_tickers or symbol not in open_positions:
+        still_pending: set[str] = set()
+        for symbol in candidates_to_force:
+            if symbol not in open_positions:
+                continue  # 이미 청산됨
+            if symbol in existing_exit_tickers:
                 continue
             if (symbol, ts) not in bar_index:
-                continue  # WHY: 해당 bar 가 없으면 청산 불가, 다음 bar 로 위임
+                still_pending.add(symbol)  # 다음 사용 가능 bar 로 이연
+                continue
             exit_signals.append(
                 Signal(timestamp=ts, ticker=symbol, side=Side.EXIT, strength=Decimal("1.0"))
             )
+        pending_forced.clear()
+        pending_forced.update(still_pending)
 
     # WHY: EXIT 먼저 처리해 현금을 회수한 뒤 LONG 진입에 활용할 수 있게 한다.
     for signal in exit_signals:

@@ -103,6 +103,14 @@ source_modules = ["backtest.domain", "backtest.application"]
 forbidden_modules = ["pandas", "numpy"]
 
 [[tool.importlinter.contracts]]
+name = "backtest.domain/application must not import risk"
+type = "forbidden"
+# WHY: ADR-005/007 — backtest → risk (L3 수평 의존) 는 어댑터 레이어에서만 허용.
+#      domain/application 순수성 보존, anti-corruption layer 는 어댑터에 고정.
+source_modules = ["backtest.domain", "backtest.application"]
+forbidden_modules = ["risk"]
+
+[[tool.importlinter.contracts]]
 name = "backtest.domain/application must not import portfolio"
 type = "forbidden"
 # WHY: backtest → portfolio (L3 수평 의존) 는 아웃바운드 어댑터에서만 허용한다.
