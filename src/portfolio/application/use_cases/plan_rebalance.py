@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Sequence
 
+from portfolio.application.ports.weight_cap_validator import WeightCapValidator
 from portfolio.domain.constraints import PortfolioConstraints
 from portfolio.domain.errors import ConstraintViolation
 from portfolio.domain.position import CurrentPosition
@@ -33,6 +34,9 @@ class PlanRebalance:
         default_factory=lambda: _DEFAULT_MIN_TRADE_WEIGHT
     )
     constraints: PortfolioConstraints | None = None
+    # WHY: M5 S11 — 단일 종목 캡 검증을 외부 어댑터에 위임 가능.
+    #      None 이면 기존 인라인 검사 유지 (기본 호환).
+    weight_cap_validator: WeightCapValidator | None = None
 
     def execute(
         self,
@@ -42,7 +46,7 @@ class PlanRebalance:
     ) -> RebalancePlan:
         """현재 포지션과 목표 비중을 비교해 리밸런싱 주문 계획을 반환한다."""
         if self.constraints is not None:
-            _enforce_constraints(targets, self.constraints)
+            _enforce_constraints(targets, self.constraints, self.weight_cap_validator)
         current_weights = _build_current_weights(current, total_equity)
         target_map = {t.symbol: t.weight for t in targets}
         all_symbols = set(current_weights) | set(target_map)
@@ -57,18 +61,24 @@ class PlanRebalance:
 def _enforce_constraints(
     targets: Sequence[TargetWeight],
     constraints: PortfolioConstraints,
+    validator: WeightCapValidator | None,
 ) -> None:
     """목표 비중이 제약 조건을 위반하는지 사후 검증한다.
 
     WHY: ComputeTargetWeights 가 제약을 이미 적용하지만, 외부에서 임의로 구성된
          targets 가 유스케이스에 직접 전달될 수 있으므로 방어선을 한 겹 더 둔다.
+         M5 S11: 단일 종목 캡 검사는 validator 가 주입되면 위임,
+         아니면 인라인 fallback 으로 동일 의미를 보존한다.
     """
     cap = constraints.max_position_weight
-    for t in targets:
-        if t.weight > cap:
-            raise ConstraintViolation(
-                f"{t.symbol} 목표 비중 {t.weight} 이 max_position_weight {cap} 초과"
-            )
+    if validator is not None:
+        validator.validate(targets, cap)
+    else:
+        for t in targets:
+            if t.weight > cap:
+                raise ConstraintViolation(
+                    f"{t.symbol} 목표 비중 {t.weight} 이 max_position_weight {cap} 초과"
+                )
     total = sum((t.weight for t in targets), _ZERO)
     max_invested = _ONE - constraints.cash_buffer
     if total > max_invested:
