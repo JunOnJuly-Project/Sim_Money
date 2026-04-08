@@ -259,17 +259,31 @@ def _equity_regular(n: int = 4, start_value: str = "100") -> list[tuple[datetime
     return [(base + timedelta(days=i), value) for i in range(n)]
 
 
-class TestRatioPerformanceCalculator_비등간격_검증:
-    """M3: 비등간격 timestamp 입력 시 ValueError 발생 여부."""
+class TestRatioPerformanceCalculator_단조증가_검증:
+    """M6: 실데이터 주말·공휴일 간격을 허용하되 단조 증가만 강제."""
 
-    def test_비등간격_equity_curve이면_ValueError를_발생시킨다(self) -> None:
-        """WHY: 등간격 가정이 위반되면 샤프 비율이 왜곡되므로
-               조용한 오답 대신 명시적 오류를 발생시켜 사용자가 인지하게 해야 한다."""
+    def test_비등간격이어도_단조_증가이면_정상_계산된다(self) -> None:
+        """WHY: 실거래일 데이터는 주말/공휴일로 1~3일 간격이 섞인다.
+               엄격 등간격을 강제하면 실데이터 경로가 전부 막히므로 완화한다."""
         from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
 
         calc = RatioPerformanceCalculator()
-        with pytest.raises(ValueError, match="비등간격"):
-            calc.compute(trades=[], equity_curve=_equity_irregular())
+        result = calc.compute(trades=[], equity_curve=_equity_irregular())
+        assert isinstance(result.sharpe, float)
+
+    def test_역행_timestamp이면_ValueError를_발생시킨다(self) -> None:
+        """WHY: 단조 증가 위반은 데이터 무결성 오류이므로 명시적으로 차단한다."""
+        from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
+
+        base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        reversed_curve = [
+            (base, Decimal("100")),
+            (base + timedelta(days=2), Decimal("101")),
+            (base + timedelta(days=1), Decimal("102")),  # 역행
+        ]
+        calc = RatioPerformanceCalculator()
+        with pytest.raises(ValueError, match="단조 증가"):
+            calc.compute(trades=[], equity_curve=reversed_curve)
 
     def test_1개_포인트_equity_curve는_간격_검증을_건너뛴다(self) -> None:
         """WHY: 포인트가 1개이면 간격을 계산할 수 없으므로 검증 자체를 생략해야 한다.

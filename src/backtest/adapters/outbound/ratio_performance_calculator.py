@@ -120,11 +120,13 @@ class RatioPerformanceCalculator:
 # ---------------------------------------------------------------------------
 
 def _validate_intervals(equity_curve: Sequence[tuple]) -> None:
-    """등간격 timestamp 여부를 검증한다.
+    """timestamp 가 단조 증가(strictly increasing)하는지 검증한다.
 
-    WHY: 비등간격 데이터에서 단순 일별 공식을 쓰면 샤프가 왜곡되므로
-         조용한 오답 대신 명시적 ValueError 로 사용자가 즉시 인지하게 한다.
-         포인트 ≤ 1 이면 간격 자체가 없으므로 검증을 건너뛴다.
+    WHY: 실데이터 일봉은 주말/공휴일로 간격이 1~3일로 들쭉날쭉하다. 등간격을
+         강제하면 실데이터 경로가 전부 500 으로 막히므로, 완화된 불변식
+         "엄격 단조 증가" 만 요구한다. 샤프 계산은 일별 거래일 샘플을 가정하는
+         기존 공식을 유지한다(연율화 252). 거래일 한 칸 = 한 샘플이라는 전제는
+         주말 스킵이 있어도 유지된다.
 
     타입 계약:
         - timestamp 는 datetime.datetime 이어야 한다.
@@ -132,7 +134,7 @@ def _validate_intervals(equity_curve: Sequence[tuple]) -> None:
 
     Raises:
         TypeError: 첫 포인트의 timestamp 가 datetime.datetime 이 아닐 때.
-        ValueError: timestamp 간격이 불균일할 때.
+        ValueError: timestamp 가 단조 증가하지 않을 때(중복·역행 포함).
     """
     if len(equity_curve) <= 1:
         return
@@ -143,13 +145,11 @@ def _validate_intervals(equity_curve: Sequence[tuple]) -> None:
     if not isinstance(timestamps[0], datetime.datetime):
         raise TypeError("timestamp 는 datetime.datetime 이어야 합니다")
 
-    first_interval = timestamps[1] - timestamps[0]
-
-    for i in range(2, len(timestamps)):
-        interval = timestamps[i] - timestamps[i - 1]
-        if interval != first_interval:
+    for i in range(1, len(timestamps)):
+        if timestamps[i] <= timestamps[i - 1]:
             raise ValueError(
-                f"비등간격 equity_curve: index {i - 1}→{i} 간격 {interval} ≠ 기준 {first_interval}"
+                f"timestamp 가 단조 증가하지 않음: index {i - 1}({timestamps[i - 1]}) "
+                f"→ {i}({timestamps[i]})"
             )
 
 

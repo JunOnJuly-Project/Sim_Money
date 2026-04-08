@@ -58,6 +58,11 @@ class FinanceDataReaderSource:
             return None
 
         price_column = _COL_ADJ_CLOSE if _COL_ADJ_CLOSE in df.columns else _COL_CLOSE
+        # WHY: FDR 은 미국 종목에서 간헐적으로 NaN 행(휴장 보정 실패 등)을 섞어 반환한다.
+        #      AdjustedPrice 불변식이 NaN 을 차단하므로 어댑터 경계에서 미리 드롭한다.
+        df = df.dropna(subset=[price_column])
+        if df.empty:
+            return None
         return self._build_price_series(ticker, df, price_column)
 
     def _build_price_series(
