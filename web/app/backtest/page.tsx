@@ -391,6 +391,24 @@ export default function BacktestPage() {
   } | null>(null);
   const [wfEnabled, setWfEnabled] = useState(false);
   const [splitRatio, setSplitRatio] = useState(0.7);
+  // WHY: M4 S7 — k-fold rolling walk-forward UI. wfEnabled 와 상호배타.
+  const [kfoldEnabled, setKfoldEnabled] = useState(false);
+  const [folds, setFolds] = useState(3);
+  const [kfold, setKfold] = useState<{
+    folds: number;
+    fold_count: number;
+    aggregate: {
+      avg_is_total_return: number;
+      avg_oos_total_return: number;
+      avg_is_sharpe: number;
+      avg_oos_sharpe: number;
+    };
+    results: Array<{
+      fold: number;
+      in_sample: BacktestResponse;
+      out_of_sample: BacktestResponse;
+    }>;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -404,10 +422,16 @@ export default function BacktestPage() {
     setError(null);
     setResult(null);
     setWalkForward(null);
+    setKfold(null);
 
     try {
       let url = buildBacktestUrl(form);
-      if (wfEnabled) {
+      if (kfoldEnabled) {
+        url = url.replace(
+          `${encodeURIComponent(form.b)}?`,
+          `${encodeURIComponent(form.b)}/walk-forward-kfold?folds=${folds}&`
+        );
+      } else if (wfEnabled) {
         // WHY: walk-forward 엔드포인트는 경로 접미가 /walk-forward 이고 split_ratio 쿼리가 추가된다.
         url = url.replace(
           `${encodeURIComponent(form.b)}?`,
@@ -422,7 +446,9 @@ export default function BacktestPage() {
       }
 
       const data = await response.json();
-      if (wfEnabled) {
+      if (kfoldEnabled) {
+        setKfold(data);
+      } else if (wfEnabled) {
         setWalkForward(data);
       } else {
         setResult(data as BacktestResponse);
@@ -459,10 +485,43 @@ export default function BacktestPage() {
             <input
               type="checkbox"
               checked={wfEnabled}
-              onChange={(e) => setWfEnabled(e.target.checked)}
+              onChange={(e) => {
+                setWfEnabled(e.target.checked);
+                if (e.target.checked) setKfoldEnabled(false);
+              }}
             />
             Walk-forward (IS/OOS 분할)
           </label>
+          <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground)" }}>
+            <input
+              type="checkbox"
+              checked={kfoldEnabled}
+              onChange={(e) => {
+                setKfoldEnabled(e.target.checked);
+                if (e.target.checked) setWfEnabled(false);
+              }}
+            />
+            k-fold rolling
+          </label>
+          {kfoldEnabled && (
+            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground)" }}>
+              folds
+              <input
+                type="number"
+                min={2}
+                max={10}
+                step={1}
+                value={folds}
+                onChange={(e) => setFolds(Number(e.target.value))}
+                className="w-16 rounded border px-2 py-1 text-xs"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--border)",
+                  color: "var(--foreground)",
+                }}
+              />
+            </label>
+          )}
           {wfEnabled && (
             <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground)" }}>
               split_ratio
@@ -520,6 +579,40 @@ export default function BacktestPage() {
         >
           <BacktestResult result={result} />
         </section>
+      )}
+
+      {/* k-fold 결과 — 폴드별 IS/OOS 카드 + 평균 집계 */}
+      {kfold !== null && (
+        <>
+          <div className="rounded-lg border p-4 text-sm" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)", color: "var(--foreground)" }}>
+            <div className="font-semibold mb-2">k-fold 평균 ({kfold.fold_count} folds, requested={kfold.folds})</div>
+            <div className="grid grid-cols-2 gap-2 font-mono text-xs" style={{ color: "var(--muted)" }}>
+              <div>avg IS total return: {kfold.aggregate.avg_is_total_return.toFixed(4)}</div>
+              <div>avg OOS total return: {kfold.aggregate.avg_oos_total_return.toFixed(4)}</div>
+              <div>avg IS sharpe: {kfold.aggregate.avg_is_sharpe.toFixed(4)}</div>
+              <div>avg OOS sharpe: {kfold.aggregate.avg_oos_sharpe.toFixed(4)}</div>
+            </div>
+          </div>
+          {kfold.results.map((fr) => (
+            <section
+              key={fr.fold}
+              className="rounded-lg border p-6 flex flex-col gap-4"
+              style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
+            >
+              <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                Fold #{fr.fold}
+              </div>
+              <div>
+                <div className="text-xs mb-1" style={{ color: "var(--muted)" }}>In-sample</div>
+                <BacktestResult result={fr.in_sample} />
+              </div>
+              <div>
+                <div className="text-xs mb-1" style={{ color: "var(--muted)" }}>Out-of-sample</div>
+                <BacktestResult result={fr.out_of_sample} />
+              </div>
+            </section>
+          ))}
+        </>
       )}
 
       {/* Walk-forward 결과 — IS/OOS 병렬 표시 */}
