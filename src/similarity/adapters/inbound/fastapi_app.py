@@ -79,7 +79,9 @@ _MIN_TRADE_WEIGHT_DEFAULT = 0.01
 _BACKTEST_DEFAULT_LOOKBACK = 20
 _BACKTEST_DEFAULT_ENTRY = 1.5
 _BACKTEST_DEFAULT_EXIT = 0.5
-_BACKTEST_DEFAULT_INITIAL = 10_000.0
+# WHY: KRW 기준 개인 계좌 스케일(1천만원). 한국 주식 주당가가 수만~수십만원이라
+#      기존 10_000(USD 가정)로는 1주도 체결되지 않아 백테스트가 사실상 무의미했다.
+_BACKTEST_DEFAULT_INITIAL = 10_000_000.0
 _BACKTEST_DEFAULT_FEE = 0.001
 _BACKTEST_DEFAULT_SLIPPAGE = 5.0
 # 무위험 수익률 기본값 — 연환산 비율 (0 = 무위험 수익 없음)
@@ -212,6 +214,158 @@ def create_app(
     def health() -> dict:
         """로드밸런서 헬스 프로브용 엔드포인트."""
         return {"status": "ok"}
+
+    @app.get("/meta/universe")
+    def universe_meta_endpoint(
+        name: str = Query("M1_PLACEHOLDER"),
+        as_of: date | None = Query(None),
+    ) -> dict:
+        """UI 드롭다운용 유니버스 스냅샷 — 시장별 종목 목록.
+
+        WHY: 프런트가 하드코딩 없이 실제 DB 의 시드 유니버스를 드롭다운/체크박스
+             소스로 쓰게 한다. 시장별로 그룹핑해 UI 가 시장 필터를 즉시 구성할 수 있다.
+             KRX 종목 코드→이름 매핑은 프런트가 추가 API 없이 보조 맵으로 처리한다.
+        """
+        snapshot = universe_source.fetch(name, as_of or date.today())
+        groups: dict[str, list[dict]] = {}
+        for ticker in snapshot.tickers:
+            groups.setdefault(ticker.market.value, []).append(
+                {"symbol": ticker.symbol, "market": ticker.market.value}
+            )
+        return {
+            "name": snapshot.name,
+            "as_of": snapshot.as_of.isoformat(),
+            "total": len(snapshot.tickers),
+            "markets": sorted(groups.keys()),
+            "by_market": groups,
+        }
+
+    @app.get("/meta/backtest-params")
+    def backtest_params_meta_endpoint() -> dict:
+        """백테스트 변수 메타정보 — UI 인라인 설명/기본값/단위 제공.
+
+        WHY: 프런트에 하드코딩된 설명을 단일 진실원(API)에서 내려받으면
+             쿼리/파라미터 설명이 서버 코드와 자동 동기화된다. UI 는 이 스키마를
+             읽어 라벨·툴팁·기본값·단위를 렌더링한다.
+        """
+        return {
+            "params": [
+                {
+                    "key": "lookback",
+                    "label": "Z-score 롤링 윈도우",
+                    "description": "스프레드의 평균·표준편차를 계산하는 거래일 수. 값이 클수록 평균회귀가 느려집니다.",
+                    "type": "int",
+                    "unit": "거래일",
+                    "default": _BACKTEST_DEFAULT_LOOKBACK,
+                    "min": 5,
+                    "max": 120,
+                },
+                {
+                    "key": "entry",
+                    "label": "진입 Z-score 임계값",
+                    "description": "|z| 가 이 값을 넘으면 페어 진입 신호가 발생합니다. 클수록 진입이 보수적입니다.",
+                    "type": "float",
+                    "unit": "σ",
+                    "default": _BACKTEST_DEFAULT_ENTRY,
+                },
+                {
+                    "key": "exit",
+                    "label": "청산 Z-score 임계값",
+                    "description": "|z| 가 이 값 이하로 수렴하면 포지션을 청산합니다.",
+                    "type": "float",
+                    "unit": "σ",
+                    "default": _BACKTEST_DEFAULT_EXIT,
+                },
+                {
+                    "key": "initial",
+                    "label": "초기 자본",
+                    "description": "백테스트 시작 시 투입하는 현금. KRW 기준 개인 계좌 스케일이 기본값입니다.",
+                    "type": "float",
+                    "unit": "KRW",
+                    "default": _BACKTEST_DEFAULT_INITIAL,
+                },
+                {
+                    "key": "fee",
+                    "label": "거래 수수료율",
+                    "description": "체결 금액 대비 수수료 비율(양방향 개별 적용).",
+                    "type": "float",
+                    "unit": "비율(0.001 = 0.1%)",
+                    "default": _BACKTEST_DEFAULT_FEE,
+                },
+                {
+                    "key": "slippage",
+                    "label": "슬리피지",
+                    "description": "체결가 왜곡 추정치(basis point). 클수록 비용 가정이 보수적입니다.",
+                    "type": "float",
+                    "unit": "bps",
+                    "default": _BACKTEST_DEFAULT_SLIPPAGE,
+                },
+                {
+                    "key": "rfr",
+                    "label": "무위험 수익률",
+                    "description": "Sharpe/Sortino 분모에 차감되는 연환산 무위험 수익률.",
+                    "type": "float",
+                    "unit": "연이율(0.03 = 3%)",
+                    "default": _BACKTEST_DEFAULT_RFR,
+                },
+                {
+                    "key": "sizer",
+                    "label": "포지션 사이저",
+                    "description": "자본 배분 방식. strength=신호 강도 비례, equal_weight=동일 가중, score_weighted=스코어 가중.",
+                    "type": "enum",
+                    "options": ["strength", "equal_weight", "score_weighted"],
+                    "default": "strength",
+                },
+                {
+                    "key": "max_position_weight",
+                    "label": "단일 종목 최대 비중",
+                    "description": "포트폴리오 내 단일 종목의 자본 비중 상한(equal/score_weighted 에만 적용).",
+                    "type": "float",
+                    "unit": "비율(0~1)",
+                    "default": _BACKTEST_DEFAULT_MAX_POSITION_WEIGHT,
+                },
+                {
+                    "key": "cash_buffer",
+                    "label": "현금 버퍼",
+                    "description": "총자본 중 투자에 사용하지 않고 유보할 현금 비율.",
+                    "type": "float",
+                    "unit": "비율(0~1)",
+                    "default": _BACKTEST_DEFAULT_CASH_BUFFER,
+                },
+                {
+                    "key": "risk_position_limit",
+                    "label": "리스크: 포지션 한도",
+                    "description": "단일 종목 노출 한도. 초과 진입 후보를 차단합니다(선택).",
+                    "type": "float",
+                    "unit": "비율(0~1)",
+                    "default": None,
+                },
+                {
+                    "key": "risk_max_drawdown",
+                    "label": "리스크: 최대 드로다운",
+                    "description": "세션 peak 대비 누적 하락이 한도를 넘으면 신규 진입을 차단합니다(선택).",
+                    "type": "float",
+                    "unit": "비율(0~1)",
+                    "default": None,
+                },
+                {
+                    "key": "risk_daily_loss",
+                    "label": "리스크: 일일 손실 한도",
+                    "description": "당일 시작 대비 손실이 한도를 넘으면 신규 진입을 차단합니다(선택).",
+                    "type": "float",
+                    "unit": "비율(0~1)",
+                    "default": None,
+                },
+                {
+                    "key": "risk_stop_loss",
+                    "label": "리스크: 손절률",
+                    "description": "개별 포지션 손실률이 한도를 넘으면 즉시 강제 청산합니다(선택).",
+                    "type": "float",
+                    "unit": "비율(0~1)",
+                    "default": None,
+                },
+            ]
+        }
 
     @app.get("/similar/{symbol}")
     def find_similar_endpoint(

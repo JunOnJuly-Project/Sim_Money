@@ -8,6 +8,8 @@ import { BlockMath } from "react-katex";
 // WHY: PairChart 는 recharts 를 사용하는 클라이언트 전용 컴포넌트다.
 //      같은 "use client" 파일에서 import 하면 번들 경계가 자연스럽게 유지된다.
 import PairChart from "./PairChart";
+import SymbolPicker from "./_components/SymbolPicker";
+import SimilarityHeatmap from "./_components/SimilarityHeatmap";
 
 // ── 타입 정의 ──────────────────────────────────────────────────────────────
 
@@ -46,7 +48,7 @@ interface WeightForm {
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_UNIVERSE = "KOSPI200";
+const DEFAULT_UNIVERSE = "M1_PLACEHOLDER";
 const DEFAULT_TOP_K = 10;
 const SCORE_DECIMAL_PLACES = 4;
 const WEIGHT_DECIMAL_PLACES = 2;
@@ -239,14 +241,24 @@ function ExploreForm({
 }: SearchFormProps) {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {/* 마켓 선택 */}
+      {/* 심볼 선택 (시장 필터 + 검색 + 드롭다운) */}
+      <SymbolPicker
+        market={form.market}
+        symbol={form.symbol}
+        onChange={(next) =>
+          onChange({ market: next.market as Market, symbol: next.symbol })
+        }
+        label="종목 선택 (시장 필터 + 검색)"
+      />
+
+      {/* 유니버스는 현재 시드 1종(M1_PLACEHOLDER) 고정. 확장되면 드롭다운으로 교체 */}
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-          마켓
+          유니버스
         </label>
         <select
-          value={form.market}
-          onChange={(e) => onChange({ market: e.target.value as Market })}
+          value={form.universe}
+          onChange={(e) => onChange({ universe: e.target.value })}
           className="rounded-md border px-3 py-2 text-sm"
           style={{
             backgroundColor: "var(--card-bg)",
@@ -254,48 +266,8 @@ function ExploreForm({
             color: "var(--foreground)",
           }}
         >
-          <option value="KRX">KRX (한국거래소)</option>
-          <option value="NASDAQ">NASDAQ</option>
+          <option value="M1_PLACEHOLDER">시드 유니버스 (KRX30 + NASDAQ15)</option>
         </select>
-      </div>
-
-      {/* 심볼 입력 */}
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-          심볼 (예: 005930, AAPL)
-        </label>
-        <input
-          type="text"
-          required
-          placeholder="종목 코드를 입력하세요"
-          value={form.symbol}
-          onChange={(e) => onChange({ symbol: e.target.value.trim() })}
-          className="rounded-md border px-3 py-2 text-sm"
-          style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border)",
-            color: "var(--foreground)",
-          }}
-        />
-      </div>
-
-      {/* 유니버스 입력 */}
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-          유니버스
-        </label>
-        <input
-          type="text"
-          required
-          value={form.universe}
-          onChange={(e) => onChange({ universe: e.target.value.trim() })}
-          className="rounded-md border px-3 py-2 text-sm"
-          style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border)",
-            color: "var(--foreground)",
-          }}
-        />
       </div>
 
       {/* 기준일 */}
@@ -476,6 +448,7 @@ export default function ExplorePage() {
   // WHY: 행 클릭으로 선택된 peer ticker 를 보관해 PairChart 마운트/언마운트를 제어한다.
   //      null 이면 차트 패널을 숨긴다.
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
+  const [view, setView] = useState<"heatmap" | "table">("heatmap");
 
   /** 폼 필드 부분 업데이트 핸들러 */
   function handleFormChange(updated: Partial<SearchForm>) {
@@ -672,11 +645,37 @@ export default function ExplorePage() {
               </p>
             )}
           </div>
-          <ResultTable
-            items={results}
-            selectedTicker={selectedPeer}
-            onRowClick={setSelectedPeer}
-          />
+          {/* 뷰 전환 토글 */}
+          <div className="flex gap-2 text-xs">
+            {(["heatmap", "table"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className="rounded border px-3 py-1 transition-opacity"
+                style={{
+                  borderColor: view === v ? "var(--accent)" : "var(--border)",
+                  color: view === v ? "var(--accent)" : "var(--muted)",
+                  backgroundColor: view === v ? "rgba(56,189,248,0.1)" : "var(--card-bg)",
+                }}
+              >
+                {v === "heatmap" ? "히트맵" : "테이블"}
+              </button>
+            ))}
+          </div>
+          {view === "heatmap" ? (
+            <SimilarityHeatmap
+              items={results}
+              selectedTicker={selectedPeer}
+              onRowClick={setSelectedPeer}
+            />
+          ) : (
+            <ResultTable
+              items={results}
+              selectedTicker={selectedPeer}
+              onRowClick={setSelectedPeer}
+            />
+          )}
         </section>
       )}
 
