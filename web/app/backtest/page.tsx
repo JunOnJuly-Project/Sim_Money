@@ -3,6 +3,8 @@
 // WHY: fetch, useState, useEffect 등 클라이언트 훅을 직접 사용하므로 "use client" 필수.
 import { useState, FormEvent } from "react";
 import BacktestResult, { BacktestResponse } from "./BacktestResult";
+import SymbolPicker from "../_components/SymbolPicker";
+import ParamHelp from "../_components/ParamHelp";
 
 // ── 타입 정의 ──────────────────────────────────────────────────────────────
 
@@ -13,6 +15,8 @@ type SizerType = "strength" | "equal_weight" | "score_weighted";
 interface BacktestForm {
   a: string;
   b: string;
+  marketA: string;
+  marketB: string;
   lookback: number;
   entry: number;
   exit: number;
@@ -43,10 +47,12 @@ const CONSTRAINTS_STEP = 0.05;
 const DEFAULT_FORM: BacktestForm = {
   a: "",
   b: "",
+  marketA: "KRX",
+  marketB: "KRX",
   lookback: 20,
   entry: 1.5,
   exit: 0.5,
-  initial: 10000,
+  initial: 10_000_000,
   fee: 0.001,
   slippage: 5.0,
   rfr: 0.0,
@@ -112,38 +118,6 @@ function NumberInputRow({ label, value, step = 1, min = 0, max, onChange }: Numb
   );
 }
 
-// ── 서브 컴포넌트: 심볼 입력 행 ──────────────────────────────────────────
-
-interface TextInputRowProps {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-}
-
-function TextInputRow({ label, placeholder, value, onChange }: TextInputRowProps) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-        {label}
-      </label>
-      <input
-        type="text"
-        required
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value.trim())}
-        className="rounded-md border px-3 py-2 text-sm"
-        style={{
-          backgroundColor: "var(--card-bg)",
-          borderColor: "var(--border)",
-          color: "var(--foreground)",
-        }}
-      />
-    </div>
-  );
-}
-
 // ── 서브 컴포넌트: 리스크 입력 ────────────────────────────────────────────
 
 interface RiskInputProps {
@@ -189,17 +163,17 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* 종목 심볼 — 좌우 배치 */}
       <div className="grid grid-cols-2 gap-3">
-        <TextInputRow
+        <SymbolPicker
           label="종목 A"
-          placeholder="예: 005930"
-          value={form.a}
-          onChange={(v) => onChange({ a: v })}
+          market={form.marketA}
+          symbol={form.a}
+          onChange={(n) => onChange({ marketA: n.market, a: n.symbol })}
         />
-        <TextInputRow
+        <SymbolPicker
           label="종목 B"
-          placeholder="예: 000660"
-          value={form.b}
-          onChange={(v) => onChange({ b: v })}
+          market={form.marketB}
+          symbol={form.b}
+          onChange={(n) => onChange({ marketB: n.market, b: n.symbol })}
         />
       </div>
 
@@ -475,6 +449,8 @@ export default function BacktestPage() {
     <main className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
       {/* ADR-000: 개인 전용 고지 문구 — 최상단 필수 */}
       <DisclaimerBanner />
+
+      <ParamHelp />
 
       {/* 헤더 */}
       <div className="flex flex-col gap-1">

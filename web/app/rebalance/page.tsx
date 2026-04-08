@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import ParamHelp from "../_components/ParamHelp";
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
 
@@ -502,6 +503,8 @@ export default function RebalancePage() {
     <main className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
       {/* ADR-000: 개인 전용 고지 문구 — 페이지 최상단 배치 필수 */}
       <DisclaimerBanner />
+
+      <ParamHelp keys={["max_position_weight", "cash_buffer"]} />
 
       {/* 상단 내비게이션 */}
       <div className="flex gap-3">
