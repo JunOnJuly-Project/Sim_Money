@@ -48,14 +48,22 @@ def _bar(ticker: str, close: str, ts: datetime) -> PriceBar:
 
 
 def _engine_with_portfolio(cash_buffer: str = "0") -> InMemoryBacktestEngine:
-    """PortfolioPositionSizer 를 주입한 엔진 생성 헬퍼."""
+    """PortfolioPositionSizer 를 주입한 엔진 생성 헬퍼.
+
+    WHY: M3 S13 부터 sizer 는 InMemoryTradeExecutor 가 아닌
+         InMemoryBacktestEngine(→ RunBacktest)에 주입된다.
+         executor 는 weight 를 명시적으로 전달받는 단순 역할만 수행한다.
+    """
     sizer = PortfolioPositionSizer(
         strategy=EqualWeightStrategy(),
         constraints=PortfolioConstraints(
             cash_buffer=Decimal(cash_buffer),
         ),
     )
-    return InMemoryBacktestEngine(trade_executor=InMemoryTradeExecutor(sizer=sizer))
+    return InMemoryBacktestEngine(
+        trade_executor=InMemoryTradeExecutor(),
+        sizer=sizer,
+    )
 
 
 # ---------------------------------------------------------------------------

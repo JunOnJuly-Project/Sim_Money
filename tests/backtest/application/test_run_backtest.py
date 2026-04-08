@@ -70,15 +70,25 @@ class FakeTradeExecutor:
 
     WHY: 실제 체결 로직을 배제하고 유스케이스 정책(어떤 신호에서 open/close 를
          호출하는지)만 검증한다. 단순 고정값을 반환한다.
+
+    M3 S13 변경: open_long 에 weight 인자 추가.
+         사이저는 RunBacktest 유스케이스가 관리하고 weight 를 명시적으로 전달한다.
     """
 
     def __init__(self) -> None:
         self.open_long_calls: list[tuple] = []
         self.close_position_calls: list[tuple] = []
 
-    def open_long(self, signal: Signal, bar: PriceBar, config: BacktestConfig, available_cash: Decimal) -> Position:
+    def open_long(
+        self,
+        signal: Signal,
+        bar: PriceBar,
+        config: BacktestConfig,
+        available_cash: Decimal,
+        weight: Decimal,
+    ) -> Position:
         """LONG 포지션 생성 — 고정 qty=100, entry_price=bar.close."""
-        self.open_long_calls.append((signal, bar, config, available_cash))
+        self.open_long_calls.append((signal, bar, config, available_cash, weight))
         return Position(
             ticker=signal.ticker,
             quantity=Decimal("100"),
