@@ -137,6 +137,7 @@ docker compose up
 | M5 S7 | import-linter `risk hexagonal layers` + `risk purity` 2 계약 추가 (10→12 KEPT) + ADR-005 갱신 | ✅ | feature/risk/importlinter-contracts |
 | M5 S8/S9 | backtest 통합 — EntryFilter 포트 + RunBacktest 훅 주입 + RiskEntryFilter 어댑터 (risk 가드 브릿지). 기본 None 으로 골든 수치 불변. 555 GREEN, 12 KEPT | ✅ | feature/backtest/risk-integration |
 | M5 S12 | /backtest/pair `risk_position_limit/max_drawdown/daily_loss` 쿼리 + InMemoryBacktestEngine.entry_filter 주입 + config 에코. 557 GREEN, 12 KEPT | ✅ | feature/api/risk-params |
+| M5 S13 | 백테스트 대시보드 — 접이식 "리스크 가드 (선택)" 섹션 + 3 입력 (포지션/DD/일일손실), 빈값=null → 쿼리 미포함. 557 GREEN, 12 KEPT | ✅ | feature/web/risk-inputs |
 
 ### 🔴 블로커
 없음

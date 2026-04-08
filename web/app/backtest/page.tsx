@@ -25,6 +25,10 @@ interface BacktestForm {
   maxPositionWeight: number;
   /** 현금 버퍼 비율 — equal_weight 사이저 선택 시에만 의미 있음 */
   cashBuffer: number;
+  /** 리스크 가드 — null 이면 비활성. 모두 옵션 (M5 S13) */
+  riskPositionLimit: number | null;
+  riskMaxDrawdown: number | null;
+  riskDailyLoss: number | null;
 }
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
@@ -47,6 +51,9 @@ const DEFAULT_FORM: BacktestForm = {
   sizer: "strength",
   maxPositionWeight: 1.0,
   cashBuffer: 0.0,
+  riskPositionLimit: null,
+  riskMaxDrawdown: null,
+  riskDailyLoss: null,
 };
 
 // ── 서브 컴포넌트: 고지 배너 ──────────────────────────────────────────────
@@ -129,6 +136,37 @@ function TextInputRow({ label, placeholder, value, onChange }: TextInputRowProps
           borderColor: "var(--border)",
           color: "var(--foreground)",
         }}
+      />
+    </div>
+  );
+}
+
+// ── 서브 컴포넌트: 리스크 입력 ────────────────────────────────────────────
+
+interface RiskInputProps {
+  label: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+}
+
+function RiskInput({ label, value, onChange }: RiskInputProps) {
+  // WHY: 빈 문자열 → null, 숫자 → number 로 변환해 미지정 의미를 명확히 한다.
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs" style={{ color: "var(--muted)" }}>{label}</label>
+      <input
+        type="number"
+        step={0.01}
+        min={0}
+        max={1}
+        placeholder="비활성"
+        value={value ?? ""}
+        onChange={(e) => {
+          const raw = e.target.value;
+          onChange(raw === "" ? null : Number(raw));
+        }}
+        className="rounded border px-2 py-1 text-sm"
+        style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)", color: "var(--foreground)" }}
       />
     </div>
   );
@@ -267,6 +305,30 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
         </div>
       )}
 
+      {/* WHY: 리스크 가드는 옵션. 접이식 details 로 기본 워크플로 보호 (M5 S13). */}
+      <details className="rounded border" style={{ borderColor: "var(--border)" }}>
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+          리스크 가드 (선택)
+        </summary>
+        <div className="grid grid-cols-3 gap-3 p-3">
+          <RiskInput
+            label="포지션 한도 (0~1)"
+            value={form.riskPositionLimit}
+            onChange={(v) => onChange({ riskPositionLimit: v })}
+          />
+          <RiskInput
+            label="최대 DD (0~1)"
+            value={form.riskMaxDrawdown}
+            onChange={(v) => onChange({ riskMaxDrawdown: v })}
+          />
+          <RiskInput
+            label="일일 손실 한도 (0~1)"
+            value={form.riskDailyLoss}
+            onChange={(v) => onChange({ riskDailyLoss: v })}
+          />
+        </div>
+      </details>
+
       <button
         type="submit"
         disabled={isLoading}
@@ -303,6 +365,16 @@ function buildBacktestUrl(form: BacktestForm): string {
   if (form.sizer === "equal_weight") {
     params.set("max_position_weight", String(form.maxPositionWeight));
     params.set("cash_buffer", String(form.cashBuffer));
+  }
+  // WHY: 리스크 가드 파라미터는 null 이 아닐 때만 쿼리에 포함한다.
+  if (form.riskPositionLimit !== null) {
+    params.set("risk_position_limit", String(form.riskPositionLimit));
+  }
+  if (form.riskMaxDrawdown !== null) {
+    params.set("risk_max_drawdown", String(form.riskMaxDrawdown));
+  }
+  if (form.riskDailyLoss !== null) {
+    params.set("risk_daily_loss", String(form.riskDailyLoss));
   }
   return `/api/backtest/pair/${encodeURIComponent(form.a)}/${encodeURIComponent(form.b)}?${params}`;
 }
