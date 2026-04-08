@@ -545,18 +545,31 @@ export default function ExplorePage() {
       {/* ADR-000: 개인 전용 고지 문구 — 페이지 최상단 배치 필수 */}
       <DisclaimerBanner />
 
-      {/* WHY: 백테스트 대시보드로의 내비게이션을 최상단에 노출해 탐색성을 높인다 */}
-      <Link
-        href="/backtest"
-        className="self-start rounded-md border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
-        style={{
-          borderColor: "var(--accent)",
-          color: "var(--accent)",
-          backgroundColor: "rgba(56,189,248,0.08)",
-        }}
-      >
-        백테스트 대시보드
-      </Link>
+      {/* WHY: 주요 도구로의 내비게이션을 최상단에 노출해 탐색성을 높인다 */}
+      <div className="flex gap-3">
+        <Link
+          href="/backtest"
+          className="self-start rounded-md border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
+          style={{
+            borderColor: "var(--accent)",
+            color: "var(--accent)",
+            backgroundColor: "rgba(56,189,248,0.08)",
+          }}
+        >
+          백테스트 대시보드
+        </Link>
+        <Link
+          href="/rebalance"
+          className="self-start rounded-md border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
+          style={{
+            borderColor: "var(--accent)",
+            color: "var(--accent)",
+            backgroundColor: "rgba(56,189,248,0.08)",
+          }}
+        >
+          리밸런싱 플래너
+        </Link>
+      </div>
 
       {/* 헤더 + KaTeX 공식 */}
       <div className="flex flex-col gap-2">
