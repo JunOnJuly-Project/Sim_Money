@@ -2,7 +2,7 @@
 
 - **상태**: Accepted
 - **날짜**: 2026-04-08
-- **연관**: ADR-001 (도메인 엄격도), ADR-003 (backtest L3), ADR-004 (portfolio L3), HANDOFF.md M3 S4
+- **연관**: ADR-001 (도메인 엄격도), ADR-003 (backtest L3), ADR-004 (portfolio L3), ADR-006 (risk L3), HANDOFF.md M3 S4 / M5 S7
 
 ---
 

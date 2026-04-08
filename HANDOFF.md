@@ -132,6 +132,9 @@ docker compose up
 | M5 S2 | RiskGuard 포트 + EvaluateRisk 유스케이스 (체인 평가, 보수적 우선, 다중 ForceClose 병합). 520 GREEN, 10 KEPT | ✅ | feature/risk/evaluate-use-case |
 | M5 S3 | PositionLimitGuard (G1) — 단일 심볼 max_weight 한도 + 경계값 3종 + 기존/후보 합산 검사. 529 GREEN, 10 KEPT | ✅ | feature/risk/position-limit-guard |
 | M5 S4 | DrawdownCircuitBreaker (G3) — peak 대비 누적 DD 한도 초과 시 BlockNew, 후보 없으면 Allow. 536 GREEN, 10 KEPT | ✅ | feature/risk/drawdown-circuit-breaker |
+| M5 S5 | StopLossGuard (G2) — 포지션 손실률 한도 초과 시 ForceClose. 541 GREEN, 10 KEPT | ✅ | feature/risk/stop-loss-guard |
+| M5 S6 | DailyLossLimitGuard (G4) — 당일 손익률 한도 이하 시 BlockNew. 549 GREEN, 10 KEPT | ✅ | feature/risk/daily-loss-limit |
+| M5 S7 | import-linter `risk hexagonal layers` + `risk purity` 2 계약 추가 (10→12 KEPT) + ADR-005 갱신 | ✅ | feature/risk/importlinter-contracts |
 
 ### 🔴 블로커
 없음
