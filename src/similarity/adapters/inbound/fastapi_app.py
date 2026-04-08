@@ -356,8 +356,20 @@ def create_app(
         engine = InMemoryBacktestEngine(trade_executor=executor)
         result = engine.run(backtest_signals, price_history, config)
 
-        # 9. 응답 직렬화
-        return _serialize_backtest_result(a, b, result, trading_signals)
+        # 9. 응답 직렬화 — 사용된 설정을 echo 로 포함해 UI 가 실행 조건을 표시할 수 있게 한다
+        config_echo = {
+            "lookback": lookback,
+            "entry": entry,
+            "exit": exit_,
+            "initial": initial,
+            "fee": fee,
+            "slippage": slippage,
+            "rfr": rfr,
+            "sizer": sizer,
+            "max_position_weight": max_position_weight,
+            "cash_buffer": cash_buffer,
+        }
+        return _serialize_backtest_result(a, b, result, trading_signals, config_echo)
 
     @app.post("/portfolio/compute", response_model=ComputeWeightsResponse)
     def compute_weights_endpoint(req: ComputeWeightsRequest) -> ComputeWeightsResponse:
@@ -504,6 +516,7 @@ def _serialize_backtest_result(
     b: str,
     result: object,
     trading_signals: list,
+    config_echo: dict,
 ) -> dict:
     """BacktestResult 를 JSON 직렬화 가능한 딕셔너리로 변환한다.
 
@@ -542,6 +555,7 @@ def _serialize_backtest_result(
         "trades": trades,
         "equity_curve": equity_curve,
         "signals_count": {"long": long_count, "short": short_count, "exit": exit_count},
+        "config": config_echo,
     }
 
 

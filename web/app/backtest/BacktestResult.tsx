@@ -50,6 +50,21 @@ export interface BacktestResponse {
   trades: Trade[];
   equity_curve: EquityPoint[];
   signals_count: SignalsCount;
+  config: BacktestConfigEcho;
+}
+
+/** 요청 시 사용된 백테스트 설정 에코 */
+export interface BacktestConfigEcho {
+  lookback: number;
+  entry: number;
+  exit: number;
+  initial: number;
+  fee: number;
+  slippage: number;
+  rfr: number;
+  sizer: string;
+  max_position_weight: number;
+  cash_buffer: number;
 }
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
@@ -268,6 +283,33 @@ function SignalsSummary({ signalsCount }: { signalsCount: SignalsCount }) {
   );
 }
 
+// ── 서브 컴포넌트: 설정 에코 ─────────────────────────────────────────────
+
+function ConfigEchoSection({ config }: { config: BacktestConfigEcho }) {
+  const items: Array<[string, string]> = [
+    ["Sizer", config.sizer],
+    ["Lookback", String(config.lookback)],
+    ["Entry/Exit", `${config.entry} / ${config.exit}`],
+    ["Initial", config.initial.toLocaleString()],
+    ["Fee/Slippage", `${config.fee} / ${config.slippage}`],
+    ["RFR", config.rfr.toString()],
+    ["MaxPosW", config.max_position_weight.toString()],
+    ["CashBuf", config.cash_buffer.toString()],
+  ];
+  return (
+    <div
+      className="flex flex-wrap gap-2 rounded-md border px-3 py-2 text-xs font-mono"
+      style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
+    >
+      {items.map(([k, v]) => (
+        <span key={k} style={{ color: "var(--muted)" }}>
+          {k}: <span style={{ color: "var(--foreground)" }}>{v}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────
 
 export interface BacktestResultProps {
@@ -298,6 +340,7 @@ export default function BacktestResult({ result }: BacktestResultProps) {
         </span>
       </div>
 
+      <ConfigEchoSection config={result.config} />
       <MetricsSection metrics={result.metrics} />
       <EquityCurveChart equityCurve={result.equity_curve} />
       <TradesTable trades={result.trades} />
