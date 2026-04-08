@@ -227,6 +227,7 @@ interface SearchFormProps {
   weights: WeightForm;
   isLoading: boolean;
   isWeightValid: boolean;
+  usesWeights: boolean;
   onChange: (updated: Partial<SearchForm>) => void;
   onWeightChange: (updated: Partial<WeightForm>) => void;
   onNormalize: () => void;
@@ -238,6 +239,7 @@ function ExploreForm({
   weights,
   isLoading,
   isWeightValid,
+  usesWeights,
   onChange,
   onWeightChange,
   onNormalize,
@@ -314,23 +316,25 @@ function ExploreForm({
         />
       </div>
 
-      {/* 가중치 슬라이더 패널 */}
-      <div
-        className="rounded-md border px-4 py-4"
-        style={{ borderColor: "var(--border)", backgroundColor: "rgba(255,255,255,0.03)" }}
-      >
-        <WeightSliderPanel
-          weights={weights}
-          onChange={onWeightChange}
-          onNormalize={onNormalize}
-        />
-      </div>
+      {/* WHY: weighted_sum 전략에서만 w1/w2/w3 가 실제로 사용된다. spearman·cointegration
+               선택 시 슬라이더를 숨겨 혼란을 제거한다. */}
+      {usesWeights && (
+        <div
+          className="rounded-md border px-4 py-4"
+          style={{ borderColor: "var(--border)", backgroundColor: "rgba(255,255,255,0.03)" }}
+        >
+          <WeightSliderPanel
+            weights={weights}
+            onChange={onWeightChange}
+            onNormalize={onNormalize}
+          />
+        </div>
+      )}
 
-      {/* WHY: 가중치 합이 1.0이 아니면 백엔드에서 의도치 않은 결과가 나오므로
-               폼 제출 자체를 비활성화하여 사용자 실수를 원천 차단한다. */}
+      {/* WHY: 가중치 합 검증은 weighted_sum 일 때만 의미 있으므로 그 외 전략에서는 건너뛴다. */}
       <button
         type="submit"
-        disabled={isLoading || !isWeightValid}
+        disabled={isLoading || (usesWeights && !isWeightValid)}
         className="rounded-md px-4 py-2 text-sm font-semibold transition-opacity disabled:opacity-50"
         style={{
           backgroundColor: "var(--accent)",
@@ -610,6 +614,7 @@ export default function ExplorePage() {
           weights={weights}
           isLoading={isLoading}
           isWeightValid={isWeightValid}
+          usesWeights={strategy === "weighted_sum"}
           onChange={handleFormChange}
           onWeightChange={handleWeightChange}
           onNormalize={handleNormalize}
