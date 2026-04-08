@@ -108,6 +108,9 @@ class RebalanceRequest(BaseModel):
     target_weights: list[TargetInput]
     total_equity: float
     min_trade_weight: float = _MIN_TRADE_WEIGHT_DEFAULT
+    # WHY: 선택적 제약 검증. None 이면 기존 동작 유지, 주입 시 위반하면 400 반환.
+    max_position_weight: float | None = None
+    cash_buffer: float | None = None
 
 
 class OrderIntentResponse(BaseModel):
@@ -668,8 +671,22 @@ def _execute_plan_rebalance(
          분리되도록 한다. 사이드 이펙트 없는 순수 호출 래퍼 역할.
     """
     from portfolio.application.use_cases.plan_rebalance import PlanRebalance
+    from portfolio.domain.constraints import PortfolioConstraints
 
-    use_case = PlanRebalance(min_trade_weight=Decimal(str(req.min_trade_weight)))
+    constraints = None
+    if req.max_position_weight is not None or req.cash_buffer is not None:
+        constraints = PortfolioConstraints(
+            max_position_weight=Decimal(str(req.max_position_weight))
+            if req.max_position_weight is not None
+            else Decimal("1"),
+            cash_buffer=Decimal(str(req.cash_buffer))
+            if req.cash_buffer is not None
+            else Decimal("0"),
+        )
+    use_case = PlanRebalance(
+        min_trade_weight=Decimal(str(req.min_trade_weight)),
+        constraints=constraints,
+    )
     return use_case.execute(current, targets, Decimal(str(req.total_equity)))
 
 

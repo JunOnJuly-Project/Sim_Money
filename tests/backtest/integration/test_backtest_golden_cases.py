@@ -347,3 +347,52 @@ class TestGoldenCase4_risk_free_rate_반영:
         assert isinstance(sharpe_rfr, float)
         # rfr 적용 시 샤프가 0 방향으로 이동해야 한다
         assert sharpe_rfr < sharpe_zero
+
+
+class TestGoldenCase5_Sortino_Calmar:
+    """Case 5: 하방 변동성 있는 equity → Sortino/Calmar 계산 회귀."""
+
+    def _build_config(self) -> BacktestConfig:
+        return BacktestConfig(
+            initial_capital=Decimal("10000"),
+            fee_rate=Decimal("0"),
+            slippage_bps=Decimal("0"),
+        )
+
+    def _run_volatile(self):
+        """WHY: 가격이 상승-하락-상승을 반복해 하방 수익률이 발생하는 시나리오.
+               LONG/EXIT 사이클로 equity_curve 포인트를 4개 이상 확보한다.
+        """
+        from backtest.adapters.outbound.in_memory_backtest_engine import InMemoryBacktestEngine
+        engine = InMemoryBacktestEngine()
+
+        t = [_utc(2024, 1, d) for d in range(1, 5)]
+        # 100 → 110(+10%) → 99(-10%) → 108(+9%) : 하방 구간 존재
+        prices = ["100", "110", "99", "95"]
+        signals = [
+            Signal(timestamp=t[0], ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t[1], ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
+            Signal(timestamp=t[2], ticker="AAPL", side=Side.LONG, strength=Decimal("1.0")),
+            Signal(timestamp=t[3], ticker="AAPL", side=Side.EXIT, strength=Decimal("1.0")),
+        ]
+        price_history = {
+            "AAPL": [_bar("AAPL", close=p, ts=ts) for ts, p in zip(t, prices)]
+        }
+        return engine.run(
+            signals=signals,
+            price_history=price_history,
+            config=self._build_config(),
+        )
+
+    def test_하방이_있으면_sortino_는_유한하다(self) -> None:
+        result = self._run_volatile()
+        import math as _m
+        assert isinstance(result.metrics.sortino, float)
+        assert _m.isfinite(result.metrics.sortino)
+
+    def test_MDD_가_음수이면_calmar_도_유한하다(self) -> None:
+        result = self._run_volatile()
+        import math as _m
+        assert result.metrics.max_drawdown < Decimal("0")
+        assert _m.isfinite(result.metrics.calmar)
+

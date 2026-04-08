@@ -379,6 +379,8 @@ interface RebalancePayload {
   targets: TargetRow[];
   totalEquity: number;
   minTradeWeight: number;
+  maxPositionWeight: number | null;
+  cashBuffer: number | null;
 }
 
 /** 백엔드 RebalanceRequest 형태로 변환하여 POST 한다 */
@@ -395,6 +397,8 @@ async function callRebalanceApi(payload: RebalancePayload): Promise<RebalanceRes
     })),
     total_equity: payload.totalEquity,
     min_trade_weight: payload.minTradeWeight,
+    max_position_weight: payload.maxPositionWeight,
+    cash_buffer: payload.cashBuffer,
   };
 
   // next.config.ts rewrites 를 통해 백엔드(localhost:8000)로 프록시된다.
@@ -419,6 +423,8 @@ export default function RebalancePage() {
   const [targets, setTargets] = useState<TargetRow[]>([]);
   const [totalEquity, setTotalEquity] = useState<number>(0);
   const [minTradeWeight, setMinTradeWeight] = useState<number>(MIN_TRADE_DEFAULT);
+  const [maxPositionWeight, setMaxPositionWeight] = useState<string>("");
+  const [cashBuffer, setCashBuffer] = useState<string>("");
 
   const [result, setResult] = useState<RebalanceResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -476,7 +482,14 @@ export default function RebalancePage() {
     setHasSubmitted(true);
 
     try {
-      const data = await callRebalanceApi({ positions, targets, totalEquity, minTradeWeight });
+      const data = await callRebalanceApi({
+        positions,
+        targets,
+        totalEquity,
+        minTradeWeight,
+        maxPositionWeight: maxPositionWeight === "" ? null : Number(maxPositionWeight),
+        cashBuffer: cashBuffer === "" ? null : Number(cashBuffer),
+      });
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.");
@@ -570,6 +583,46 @@ export default function RebalancePage() {
                 step={1}
                 value={totalEquity}
                 onChange={(e) => setTotalEquity(Number(e.target.value))}
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--border)",
+                  color: "var(--foreground)",
+                }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                max_position_weight (선택, 비우면 제약 없음)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.01}
+                value={maxPositionWeight}
+                placeholder="예: 0.3"
+                onChange={(e) => setMaxPositionWeight(e.target.value)}
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--border)",
+                  color: "var(--foreground)",
+                }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                cash_buffer (선택, 비우면 제약 없음)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.01}
+                value={cashBuffer}
+                placeholder="예: 0.1"
+                onChange={(e) => setCashBuffer(e.target.value)}
                 className="rounded-md border px-3 py-2 text-sm"
                 style={{
                   backgroundColor: "var(--card-bg)",

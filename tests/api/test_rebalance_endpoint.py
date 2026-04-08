@@ -193,3 +193,43 @@ def test_target_weight_초과_400(client: TestClient) -> None:
     res = _post(client, payload)
 
     assert res.status_code == 400
+
+
+def test_max_position_weight_위반시_400(client: TestClient) -> None:
+    """max_position_weight 초과 target 은 ConstraintViolation → 400."""
+    payload = {
+        "current_positions": [],
+        "target_weights": [{"symbol": _SYMBOL_A, "weight": 0.5}],
+        "total_equity": _TOTAL_EQUITY_DEFAULT,
+        "max_position_weight": 0.3,
+    }
+    res = _post(client, payload)
+    assert res.status_code == 400
+    assert "max_position_weight" in res.json()["detail"]
+
+
+def test_cash_buffer_위반시_400(client: TestClient) -> None:
+    """target 합 > 1 - cash_buffer 이면 400."""
+    payload = {
+        "current_positions": [],
+        "target_weights": [
+            {"symbol": _SYMBOL_A, "weight": 0.5},
+            {"symbol": _SYMBOL_B, "weight": 0.4},
+        ],
+        "total_equity": _TOTAL_EQUITY_DEFAULT,
+        "cash_buffer": 0.2,
+    }
+    res = _post(client, payload)
+    assert res.status_code == 400
+    assert "cash_buffer" in res.json()["detail"]
+
+
+def test_제약_미주입이면_종전과_동일_동작(client: TestClient) -> None:
+    """선택 파라미터 생략 시 기존 경로대로 통과한다."""
+    payload = {
+        "current_positions": [],
+        "target_weights": [{"symbol": _SYMBOL_A, "weight": 0.99}],
+        "total_equity": _TOTAL_EQUITY_DEFAULT,
+    }
+    res = _post(client, payload)
+    assert res.status_code == 200

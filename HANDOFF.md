@@ -121,6 +121,7 @@ docker compose up
 | M3 S13 | 백테스트 엔진 그룹 단위 포트폴리오 사이징 (PositionSizer.size_group, initial_cash 스냅샷). 477 GREEN, 10 KEPT | ✅ | feature/backtest/group-sizing |
 | M3 S14 | Sortino·Calmar 리스크 지표 추가 + API 응답 노출. 482 GREEN, 10 KEPT | ✅ | feature/backtest/sortino-calmar |
 | M3 S15 | PlanRebalance 제약 사후 검증 (max_position_weight / cash_buffer → ConstraintViolation). 485 GREEN, 10 KEPT | ✅ | feature/portfolio/plan-constraints |
+| M3 S16 | UI/API 마무리: Sortino·Calmar 메트릭 카드, /portfolio/rebalance 제약 파라미터, 골든 케이스 Sortino/Calmar 회귀. 490 GREEN, 10 KEPT | ✅ | feature/ui/metrics-and-constraints |
 
 ### 🔴 블로커
 없음
