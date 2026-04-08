@@ -312,6 +312,13 @@ function buildBacktestUrl(form: BacktestForm): string {
 export default function BacktestPage() {
   const [form, setForm] = useState<BacktestForm>(DEFAULT_FORM);
   const [result, setResult] = useState<BacktestResponse | null>(null);
+  const [walkForward, setWalkForward] = useState<{
+    in_sample: BacktestResponse;
+    out_of_sample: BacktestResponse;
+    split: { ratio: number; timestamp: string; index: number };
+  } | null>(null);
+  const [wfEnabled, setWfEnabled] = useState(false);
+  const [splitRatio, setSplitRatio] = useState(0.7);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -324,9 +331,17 @@ export default function BacktestPage() {
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setWalkForward(null);
 
     try {
-      const url = buildBacktestUrl(form);
+      let url = buildBacktestUrl(form);
+      if (wfEnabled) {
+        // WHY: walk-forward 엔드포인트는 경로 접미가 /walk-forward 이고 split_ratio 쿼리가 추가된다.
+        url = url.replace(
+          `${encodeURIComponent(form.b)}?`,
+          `${encodeURIComponent(form.b)}/walk-forward?split_ratio=${splitRatio}&`
+        );
+      }
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -334,8 +349,12 @@ export default function BacktestPage() {
         throw new Error(`서버 오류 ${response.status}: ${body}`);
       }
 
-      const data: BacktestResponse = await response.json();
-      setResult(data);
+      const data = await response.json();
+      if (wfEnabled) {
+        setWalkForward(data);
+      } else {
+        setResult(data as BacktestResponse);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.");
     } finally {
@@ -363,6 +382,35 @@ export default function BacktestPage() {
         className="rounded-lg border p-6"
         style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
       >
+        <div className="mb-4 flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground)" }}>
+            <input
+              type="checkbox"
+              checked={wfEnabled}
+              onChange={(e) => setWfEnabled(e.target.checked)}
+            />
+            Walk-forward (IS/OOS 분할)
+          </label>
+          {wfEnabled && (
+            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground)" }}>
+              split_ratio
+              <input
+                type="number"
+                min={0.1}
+                max={0.9}
+                step={0.05}
+                value={splitRatio}
+                onChange={(e) => setSplitRatio(Number(e.target.value))}
+                className="w-20 rounded border px-2 py-1 text-xs"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--border)",
+                  color: "var(--foreground)",
+                }}
+              />
+            </label>
+          )}
+        </div>
         <BacktestForm
           form={form}
           isLoading={isLoading}
@@ -400,6 +448,34 @@ export default function BacktestPage() {
         >
           <BacktestResult result={result} />
         </section>
+      )}
+
+      {/* Walk-forward 결과 — IS/OOS 병렬 표시 */}
+      {walkForward !== null && (
+        <>
+          <div className="text-xs font-mono" style={{ color: "var(--muted)" }}>
+            split @ {walkForward.split.timestamp} (ratio {walkForward.split.ratio}, idx{" "}
+            {walkForward.split.index})
+          </div>
+          <section
+            className="rounded-lg border p-6"
+            style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
+          >
+            <h3 className="mb-3 text-sm font-semibold" style={{ color: "var(--accent)" }}>
+              In-sample
+            </h3>
+            <BacktestResult result={walkForward.in_sample} />
+          </section>
+          <section
+            className="rounded-lg border p-6"
+            style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)" }}
+          >
+            <h3 className="mb-3 text-sm font-semibold" style={{ color: "var(--accent)" }}>
+              Out-of-sample
+            </h3>
+            <BacktestResult result={walkForward.out_of_sample} />
+          </section>
+        </>
       )}
     </main>
   );
