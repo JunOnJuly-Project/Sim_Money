@@ -20,6 +20,8 @@ interface BacktestMetrics {
   sharpe: number | null;
   max_drawdown: number;
   win_rate: number | null;
+  sortino: number;
+  calmar: number;
 }
 
 /** 단일 체결 거래 */
@@ -115,7 +117,7 @@ function MetricsSection({ metrics }: { metrics: BacktestMetrics }) {
       <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
         성과 지표
       </h3>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard
           label="총 수익률"
           value={`${isReturnPositive ? "+" : ""}${totalReturnPct}%`}
@@ -124,6 +126,16 @@ function MetricsSection({ metrics }: { metrics: BacktestMetrics }) {
         <MetricCard
           label="샤프 비율"
           value={metrics.sharpe !== null ? metrics.sharpe.toFixed(DECIMAL_PLACES) : "-"}
+        />
+        <MetricCard
+          label="Sortino"
+          value={metrics.sortino.toFixed(DECIMAL_PLACES)}
+          isPositive={metrics.sortino >= 0}
+        />
+        <MetricCard
+          label="Calmar"
+          value={metrics.calmar.toFixed(DECIMAL_PLACES)}
+          isPositive={metrics.calmar >= 0}
         />
         <MetricCard
           label="최대 낙폭"
