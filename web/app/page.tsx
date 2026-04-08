@@ -10,6 +10,7 @@ import { BlockMath } from "react-katex";
 import PairChart from "./PairChart";
 import SymbolPicker from "./_components/SymbolPicker";
 import SimilarityHeatmap from "./_components/SimilarityHeatmap";
+import SimilarityScatter from "./_components/SimilarityScatter";
 import ParamHelp from "./_components/ParamHelp";
 
 // ── 타입 정의 ──────────────────────────────────────────────────────────────
@@ -21,12 +22,14 @@ interface SimilarItem {
   rank: number;
   ticker: string;
   score: number;
+  volatility: number | null;
 }
 
 /** 백엔드 /similar/{symbol} 의 응답 스키마 */
 interface SimilarResponse {
   target: string;
-  results: Array<{ ticker: string; score: number }>;
+  target_volatility?: number | null;
+  results: Array<{ ticker: string; score: number; volatility?: number | null }>;
   /** 백엔드가 실제로 사용한 가중치 (없으면 요청값을 표시) */
   weights?: { w1: number; w2: number; w3: number };
 }
@@ -449,7 +452,8 @@ export default function ExplorePage() {
   // WHY: 행 클릭으로 선택된 peer ticker 를 보관해 PairChart 마운트/언마운트를 제어한다.
   //      null 이면 차트 패널을 숨긴다.
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
-  const [view, setView] = useState<"heatmap" | "table">("heatmap");
+  const [targetVolatility, setTargetVolatility] = useState<number | null>(null);
+  const [view, setView] = useState<"scatter" | "heatmap" | "table">("scatter");
 
   /** 폼 필드 부분 업데이트 핸들러 */
   function handleFormChange(updated: Partial<SearchForm>) {
@@ -504,8 +508,10 @@ export default function ExplorePage() {
         rank: index + 1,
         ticker: item.ticker,
         score: item.score,
+        volatility: item.volatility ?? null,
       }));
       setResults(ranked);
+      setTargetVolatility(data.target_volatility ?? null);
 
       // 백엔드가 weights 필드를 돌려주면 그걸, 아니면 요청값을 표시한다.
       setUsedWeights(data.weights ?? { w1: weights.w1, w2: weights.w2, w3: weights.w3 });
@@ -650,7 +656,7 @@ export default function ExplorePage() {
           </div>
           {/* 뷰 전환 토글 */}
           <div className="flex gap-2 text-xs">
-            {(["heatmap", "table"] as const).map((v) => (
+            {(["scatter", "heatmap", "table"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -662,11 +668,19 @@ export default function ExplorePage() {
                   backgroundColor: view === v ? "rgba(56,189,248,0.1)" : "var(--card-bg)",
                 }}
               >
-                {v === "heatmap" ? "히트맵" : "테이블"}
+                {v === "scatter" ? "2D 스캐터" : v === "heatmap" ? "히트맵" : "테이블"}
               </button>
             ))}
           </div>
-          {view === "heatmap" ? (
+          {view === "scatter" ? (
+            <SimilarityScatter
+              items={results}
+              targetTicker={`${form.market}:${form.symbol}`}
+              targetVolatility={targetVolatility}
+              selectedTicker={selectedPeer}
+              onPointClick={setSelectedPeer}
+            />
+          ) : view === "heatmap" ? (
             <SimilarityHeatmap
               items={results}
               selectedTicker={selectedPeer}

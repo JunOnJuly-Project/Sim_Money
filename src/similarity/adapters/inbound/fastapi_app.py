@@ -415,7 +415,7 @@ def create_app(
             top_k=top_k,
             min_abs_score=min_abs_score,
         )
-        return _execute_query(find_similar, query, target, weights)
+        return _execute_query(find_similar, query, target, weights, repository)
 
     @app.get("/pair/{symbol_a}/{symbol_b}")
     def pair_endpoint(
@@ -1233,6 +1233,7 @@ def _execute_query(
     query: FindSimilarQuery,
     target: Ticker,
     weights: SimilarityWeights,
+    repository: PriceRepository | None = None,
 ) -> dict:
     """유스케이스를 실행하고 HTTP 에러로 변환한다.
 
@@ -1255,11 +1256,59 @@ def _execute_query(
         else:
             _raise_http_error(exc)
 
+    # WHY: 2D 시각화(유사도×변동성 스캐터) 를 위해 각 결과 티커의 연환산 변동성을
+    #      추가 지표로 계산한다. 쿼리 타겟도 함께 계산해 프런트가 기준점으로 사용.
+    vol_map: dict[str, float] = {}
+    if repository is not None:
+        tickers_to_quote = [target] + [r.ticker for r in results]
+        for tk in tickers_to_quote:
+            key = str(tk)
+            if key in vol_map:
+                continue
+            vol = _annualized_volatility(repository, tk)
+            if vol is not None:
+                vol_map[key] = vol
+
     return {
         "target": str(target),
+        "target_volatility": vol_map.get(str(target)),
         "weights": {"w1": weights.w1, "w2": weights.w2, "w3": weights.w3},
-        "results": [{"ticker": str(r.ticker), "score": r.score} for r in results],
+        "results": [
+            {
+                "ticker": str(r.ticker),
+                "score": r.score,
+                "volatility": vol_map.get(str(r.ticker)),
+            }
+            for r in results
+        ],
     }
+
+
+# WHY: 로그수익률 표본표준편차 × √252 → 연환산 변동성. 252 = KRX/NASDAQ 공통
+#      거래일 연간 근사. 표본 부족(<2) 이면 None 반환해 프런트가 결측 처리.
+_TRADING_DAYS_PER_YEAR = 252
+_MIN_RETURNS_FOR_VOL = 2
+
+
+def _annualized_volatility(
+    repository: PriceRepository, ticker: Ticker
+) -> float | None:
+    """단일 티커의 연환산 로그수익률 변동성을 계산한다."""
+    try:
+        series = repository.load(ticker)
+    except Exception:
+        return None
+    if series is None:
+        return None
+    prices = [float(p.value) for _, p in series.prices]
+    if len(prices) < _MIN_RETURNS_FOR_VOL + 1:
+        return None
+    returns = _to_log_returns(prices)
+    if len(returns) < _MIN_RETURNS_FOR_VOL:
+        return None
+    mean = sum(returns) / len(returns)
+    var = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
+    return math.sqrt(var) * math.sqrt(_TRADING_DAYS_PER_YEAR)
 
 
 def _raise_http_error(exc: ValueError) -> None:
