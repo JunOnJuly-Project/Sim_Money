@@ -2,7 +2,7 @@
 
 > 다른 PC / 다른 세션에서 이 프로젝트를 **끊김 없이 이어서 진행**하기 위한 안내서.
 > 스키마 버전: v2
-> 최종 업데이트: 2026-04-08
+> 최종 업데이트: 2026-04-08 (M5 review-proposals 반영)
 
 ---
 
@@ -143,6 +143,7 @@ docker compose up
 | M4 S7 | k-fold UI — `/backtest` 에 k-fold rolling 체크박스 + folds 입력 + 폴드별 IS/OOS 카드 + 평균 집계 카드 추가. wfEnabled 와 상호배타. 566 GREEN, 12 KEPT | ✅ | feature/web/walk-forward-kfold-ui |
 | M5 S14 | ExitAdvisor 포트(ADR-007) + RiskExitAdvisor(StopLossGuard 래핑) + RunBacktest 매 bar 강제 청산 통합 + `/backtest/pair?risk_stop_loss` 쿼리 + UI 손절률 입력. advisor=None 기본은 골든 회귀 0. 570 GREEN, 12 KEPT | ✅ | feature/backtest/exit-advisor |
 | M5 review-fix | 리뷰 후속 수정: (1) `backtest.*→risk` forbidden 계약 추가 (13 KEPT) (2) RiskSessionState 공유 객체로 EntryFilter/ExitAdvisor peak 추적 통합 (3) walk-forward/kfold 엔드포인트 risk_* 쿼리 전파 (4) advisor 권고 후 bar 부재 시 pending_forced 큐로 이연 청산 (5) 골든 테스트 metrics 동등성 단언 추가. 571 GREEN, 13 KEPT | ✅ | fix/m5-review-followups |
+| M5 review-proposals | 리뷰 [제안] 4건 반영: (1) RiskWeightCapValidator weight<0 방어적 ConstraintViolation + 0 만 skip (2) `_calc_equity_snapshot` sum 초기값 패턴 통일 (3) `_build_bar_index` (dict, frozenset) 튜플 반환으로 유니크 ts 재계산 제거 (4) RiskContext.available_cash 필드 추가 + EntryFilter/ExitAdvisor 전달. 571 GREEN, 13 KEPT | ✅ | fix/m5-review-proposals |
 
 ### 🔴 블로커
 없음
