@@ -19,6 +19,8 @@ from typing import Callable
 from market_data.adapters.outbound.duckdb_price_repository import DuckDBPriceRepository
 from market_data.domain.ticker import Ticker
 from similarity.adapters.inbound.fastapi_app import create_app
+from similarity.domain.cointegration_strategy import CointegrationStrategy
+from similarity.domain.spearman_strategy import SpearmanStrategy
 from similarity.domain.weighted_sum_strategy import SimilarityWeights, WeightedSumStrategy
 from universe.application.ports import UniverseSource
 from universe.domain.universe_snapshot import UniverseSnapshot
@@ -93,8 +95,18 @@ def _build_app():
     seed_tickers = _parse_seed_tickers(seed_raw)
     universe_source: UniverseSource = _InMemoryUniverseSource(seed_tickers)
     strategy_factory = _build_strategy_factory()
+    # WHY: 무가중치 전략은 stateless 이므로 앱 수명 동안 단일 인스턴스 재사용.
+    strategy_registry = {
+        "spearman": SpearmanStrategy(),
+        "cointegration": CointegrationStrategy(),
+    }
 
-    return create_app(repository, universe_source, strategy_factory)
+    return create_app(
+        repository,
+        universe_source,
+        strategy_factory,
+        strategy_registry=strategy_registry,
+    )
 
 
 # uvicorn 이 직접 참조하는 ASGI app 객체

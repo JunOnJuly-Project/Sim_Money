@@ -18,10 +18,12 @@
 
 ### 이 프로젝트의 레벨 매핑
 
-- **L3**: `portfolio/`, `signal/`, `backtest/`, `trading/`, `risk/`
-  - M1 에서는 **스켈레톤만** (패키지 + 포트 인터페이스, 로직 0)
-  - 로직 추가 순간 L3 엄격도 즉시 발동
+- **L3 (활성화 완료)**: `portfolio/`, `backtest/`, `trading_signal/`
+  - M2~M3 에서 활성화 완료. 커버리지·헥사고날·import-linter 계약 적용 중
+- **L3 (스켈레톤, 활성화 금지)**: `trading/`, `risk/`
+  - Stage 3 법률 게이트 통과 이전까지 로직 추가 금지
 - **L2**: `similarity/`, `market_data/`, `universe/`
+  - `similarity/domain/` 에 WeightedSum·Spearman·Cointegration 3개 전략 구현됨
 - **L1**: `ui_playground/`, `visualization/`, `notebooks/`, `fixtures/`, `docs/`
 
 ### 의존 방향 규칙 (import-linter 로 CI 강제)
@@ -49,8 +51,9 @@
 ## 유사도 공식 규칙 (ADR-002)
 
 - 공식은 `SimilarityStrategy` 포트로만 호출한다. 직접 하드코딩 금지.
-- M1 에는 `WeightedSumStrategy` 1개만 구현.
-- Phase 2+ 전략(Spearman, 공적분, DTW, DCC-GARCH)은 같은 인터페이스의 추가 구현으로 도입.
+- 현재 구현: `WeightedSumStrategy`, `SpearmanStrategy`, `CointegrationStrategy` (similarity L2 도메인).
+- `/similar` 엔드포인트는 `strategy` 쿼리 파라미터로 런타임 선택 가능 (M4 S1 이후).
+- 추가 전략(DTW, DCC-GARCH 등) 은 같은 인터페이스의 새 구현으로 도입.
 
 ## 금지 사항
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Callable, Literal
+from typing import Callable, Literal, Mapping
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
@@ -39,6 +39,11 @@ from universe.application.ports import UniverseSource
 # /portfolio/compute 전략 이름 상수
 _STRATEGY_EQUAL_WEIGHT = "equal_weight"
 _STRATEGY_SCORE_WEIGHTED = "score_weighted"
+
+# /similar 유사도 전략 이름 상수
+_SIM_STRATEGY_WEIGHTED_SUM = "weighted_sum"
+_SIM_STRATEGY_SPEARMAN = "spearman"
+_SIM_STRATEGY_COINTEGRATION = "cointegration"
 
 # 에러 메시지 식별자 — 매직 문자열 금지
 _ERR_NOT_IN_UNIVERSE = "유니버스에 없습니다"
@@ -162,6 +167,7 @@ def create_app(
     repository: PriceRepository,
     universe_source: UniverseSource,
     strategy_factory: Callable[[SimilarityWeights], SimilarityStrategy],
+    strategy_registry: Mapping[str, SimilarityStrategy] | None = None,
 ) -> FastAPI:
     """FastAPI 앱 인스턴스를 생성하고 라우트를 등록한다.
 
@@ -174,6 +180,9 @@ def create_app(
         universe_source: 유니버스 스냅샷 조회 포트
         strategy_factory: SimilarityWeights 를 받아 SimilarityStrategy 를 반환하는 팩토리
     """
+    # WHY: strategy_registry 가 None 이면 빈 dict 로 정규화해 조회 분기를 단순화한다.
+    _registry: Mapping[str, SimilarityStrategy] = strategy_registry or {}
+
     app = FastAPI()
 
     @app.get("/health")
@@ -192,11 +201,27 @@ def create_app(
         w1: float = Query(_DEFAULT_W1),
         w2: float = Query(_DEFAULT_W2),
         w3: float = Query(_DEFAULT_W3),
+        strategy_name: Literal[
+            "weighted_sum", "spearman", "cointegration"
+        ] = Query(_SIM_STRATEGY_WEIGHTED_SUM, alias="strategy"),
     ) -> dict:
-        """유사 종목 목록을 반환한다."""
+        """유사 종목 목록을 반환한다.
+
+        WHY: strategy 쿼리 파라미터로 런타임에 유사도 공식을 교체할 수 있다.
+             weighted_sum 은 w1/w2/w3 가중치를 사용하고, spearman/cointegration
+             은 registry 에서 사전 구축된 인스턴스를 조회한다.
+        """
         try:
             weights = SimilarityWeights(w1, w2, w3)
-            strategy = strategy_factory(weights)
+            if strategy_name == _SIM_STRATEGY_WEIGHTED_SUM:
+                strategy = strategy_factory(weights)
+            else:
+                if strategy_name not in _registry:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"strategy '{strategy_name}' 가 등록되지 않았습니다",
+                    )
+                strategy = _registry[strategy_name]
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
