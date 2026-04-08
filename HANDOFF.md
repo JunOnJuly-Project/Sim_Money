@@ -141,6 +141,7 @@ docker compose up
 | M5 S10 | 가드 활성 골든 회귀 3종 — PositionLimit BlockNew/Allow 경계 + ON·OFF equity_curve 분기. RiskEntryFilter notional 추정(`strength*cash/N`) 이 StrengthPositionSizer.size_group 과 일치함을 결정론 검증. 560 GREEN, 12 KEPT | ✅ | feature/backtest/risk-golden |
 | M5 S11 | PlanRebalance → PositionLimitGuard 위임 — WeightCapValidator 포트 + RiskWeightCapValidator 어댑터(equity=1, notional=weight 매핑). PlanRebalance 에 optional validator 주입, 기본 None 은 인라인 fallback 으로 회귀 0. 566 GREEN, 12 KEPT | ✅ | feature/portfolio/limit-via-risk |
 | M4 S7 | k-fold UI — `/backtest` 에 k-fold rolling 체크박스 + folds 입력 + 폴드별 IS/OOS 카드 + 평균 집계 카드 추가. wfEnabled 와 상호배타. 566 GREEN, 12 KEPT | ✅ | feature/web/walk-forward-kfold-ui |
+| M5 S14 | ExitAdvisor 포트(ADR-007) + RiskExitAdvisor(StopLossGuard 래핑) + RunBacktest 매 bar 강제 청산 통합 + `/backtest/pair?risk_stop_loss` 쿼리 + UI 손절률 입력. advisor=None 기본은 골든 회귀 0. 570 GREEN, 12 KEPT | ✅ | feature/backtest/exit-advisor |
 
 ### 🔴 블로커
 없음
@@ -149,7 +150,7 @@ docker compose up
 
 | 우선순위 | 슬라이스 | 설명 | 브랜치 |
 |---------|---------|------|--------|
-| 1 | M5 S14 (deferred) | ExitAdvisor 포트 신설 + StopLossGuard ForceClose 의 엔진 실시간 청산 통합. EntryFilter 만으로는 강제 청산 불가하므로 별도 ADR-007 후보 | `feature/backtest/exit-advisor` |
+| - | (없음) | M4/M5 슬라이스 모두 종료. 다음 마일스톤(M6) 계획 수립이 다음 작업 후보 | - |
 
 상세 계획: [`docs/plans/M2-plan.md`](docs/plans/M2-plan.md)
 M1 회고: [`docs/retros/M1-retrospective.md`](docs/retros/M1-retrospective.md)

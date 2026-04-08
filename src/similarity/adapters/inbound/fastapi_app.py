@@ -348,6 +348,10 @@ def create_app(
             None, gt=0.0, le=1.0,
             description="리스크 가드: 당일 손실 한도.",
         ),
+        risk_stop_loss: float | None = Query(
+            None, gt=0.0, le=1.0,
+            description="리스크 가드: 단일 포지션 손절률 — 초과 시 강제 청산 (M5 S14).",
+        ),
     ) -> dict:
         """페어 백테스트를 실행하고 결과를 반환한다.
 
@@ -418,7 +422,12 @@ def create_app(
         risk_filter = _build_risk_filter(
             risk_position_limit, risk_max_drawdown, risk_daily_loss,
         )
-        engine = InMemoryBacktestEngine(sizer=sizer_instance, entry_filter=risk_filter)
+        risk_advisor = _build_risk_exit_advisor(risk_stop_loss)
+        engine = InMemoryBacktestEngine(
+            sizer=sizer_instance,
+            entry_filter=risk_filter,
+            exit_advisor=risk_advisor,
+        )
         result = engine.run(backtest_signals, price_history, config)
 
         # 9. 응답 직렬화 — 사용된 설정을 echo 로 포함해 UI 가 실행 조건을 표시할 수 있게 한다
@@ -436,6 +445,7 @@ def create_app(
             "risk_position_limit": risk_position_limit,
             "risk_max_drawdown": risk_max_drawdown,
             "risk_daily_loss": risk_daily_loss,
+            "risk_stop_loss": risk_stop_loss,
         }
         return _serialize_backtest_result(a, b, result, trading_signals, config_echo)
 
@@ -852,6 +862,19 @@ def _build_risk_filter(
     if daily_loss is not None:
         guards.append(DailyLossLimitGuard(max_daily_loss=Decimal(str(daily_loss))))
     return RiskEntryFilter(guards=guards)
+
+
+def _build_risk_exit_advisor(stop_loss: float | None):
+    """stop_loss 가 지정되면 RiskExitAdvisor(StopLossGuard) 를 조립한다 (M5 S14).
+
+    WHY: 진입 차단(EntryFilter) 만으로는 보유 포지션을 강제 청산할 수 없으므로
+         별도 ExitAdvisor 경로로 StopLossGuard 의 ForceClose 를 EXIT 로 변환한다.
+    """
+    if stop_loss is None:
+        return None
+    from backtest.adapters.outbound.risk_exit_advisor import RiskExitAdvisor
+    from risk.adapters.outbound import StopLossGuard
+    return RiskExitAdvisor(guards=[StopLossGuard(max_loss_pct=Decimal(str(stop_loss)))])
 
 
 def _build_sizer(

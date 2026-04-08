@@ -29,6 +29,8 @@ interface BacktestForm {
   riskPositionLimit: number | null;
   riskMaxDrawdown: number | null;
   riskDailyLoss: number | null;
+  /** 단일 포지션 손절률 — ExitAdvisor (M5 S14) */
+  riskStopLoss: number | null;
 }
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
@@ -54,6 +56,7 @@ const DEFAULT_FORM: BacktestForm = {
   riskPositionLimit: null,
   riskMaxDrawdown: null,
   riskDailyLoss: null,
+  riskStopLoss: null,
 };
 
 // ── 서브 컴포넌트: 고지 배너 ──────────────────────────────────────────────
@@ -310,7 +313,7 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
         <summary className="cursor-pointer px-3 py-2 text-sm font-medium" style={{ color: "var(--foreground)" }}>
           리스크 가드 (선택)
         </summary>
-        <div className="grid grid-cols-3 gap-3 p-3">
+        <div className="grid grid-cols-2 gap-3 p-3">
           <RiskInput
             label="포지션 한도 (0~1)"
             value={form.riskPositionLimit}
@@ -325,6 +328,11 @@ function BacktestForm({ form, isLoading, onChange, onSubmit }: BacktestFormProps
             label="일일 손실 한도 (0~1)"
             value={form.riskDailyLoss}
             onChange={(v) => onChange({ riskDailyLoss: v })}
+          />
+          <RiskInput
+            label="손절률 — 강제 청산 (0~1)"
+            value={form.riskStopLoss}
+            onChange={(v) => onChange({ riskStopLoss: v })}
           />
         </div>
       </details>
@@ -375,6 +383,9 @@ function buildBacktestUrl(form: BacktestForm): string {
   }
   if (form.riskDailyLoss !== null) {
     params.set("risk_daily_loss", String(form.riskDailyLoss));
+  }
+  if (form.riskStopLoss !== null) {
+    params.set("risk_stop_loss", String(form.riskStopLoss));
   }
   return `/api/backtest/pair/${encodeURIComponent(form.a)}/${encodeURIComponent(form.b)}?${params}`;
 }

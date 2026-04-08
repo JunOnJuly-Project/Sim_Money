@@ -17,6 +17,7 @@ from itertools import groupby
 from typing import Mapping, Sequence
 
 from backtest.application.ports.entry_filter import EntryFilter
+from backtest.application.ports.exit_advisor import ExitAdvisor, PositionView
 from backtest.application.ports.performance_calculator import PerformanceCalculator
 from backtest.application.ports.position_sizer import PositionSizer
 from backtest.application.ports.trade_executor import TradeExecutor
@@ -37,6 +38,7 @@ class RunBacktest:
         performance_calculator: PerformanceCalculator,
         sizer: PositionSizer | None = None,
         entry_filter: EntryFilter | None = None,
+        exit_advisor: ExitAdvisor | None = None,
     ) -> None:
         """포트 구현체를 주입받아 유스케이스를 초기화한다.
 
@@ -53,6 +55,8 @@ class RunBacktest:
         self._sizer: PositionSizer = sizer if sizer is not None else _DefaultStrengthSizer()
         # WHY: 기본 None 이면 no-op 필터. 기존 골든 케이스 수치 불변을 보장한다.
         self._entry_filter: EntryFilter | None = entry_filter
+        # WHY: 기본 None 이면 강제 청산 권고 없음. M5 S14 ExitAdvisor.
+        self._exit_advisor: ExitAdvisor | None = exit_advisor
 
     def execute(
         self,
@@ -82,12 +86,24 @@ class RunBacktest:
         # WHY: timestamp 기준으로 그룹핑해 동시 신호를 일괄 처리한다.
         #      sizer.size_group 으로 그룹 전체를 한 번에 처리해
         #      포트폴리오 제약(cash_buffer, max_position_weight)이 형제 신호를 인지한다.
+        signals_by_ts: dict[datetime, list[Signal]] = {}
         for ts, group in groupby(sorted_signals, key=lambda s: s.timestamp):
-            ts_signals = list(group)
+            signals_by_ts[ts] = list(group)
+
+        # WHY: M5 S14 — exit_advisor 가 있으면 신호 없는 bar 에서도 매 bar 강제 청산을
+        #      평가해야 하므로 신호 timestamp 와 bar timestamp 의 합집합을 순회한다.
+        #      advisor 가 None 이면 기존 동작(신호 ts 만 순회) 그대로 → 골든 회귀 0.
+        if self._exit_advisor is not None:
+            all_ts = sorted(set(signals_by_ts.keys()) | {key[1] for key in bar_index.keys()})
+        else:
+            all_ts = sorted(signals_by_ts.keys())
+
+        for ts in all_ts:
+            ts_signals = signals_by_ts.get(ts, [])
             available_cash = _process_timestamp_signals(
                 ts, ts_signals, bar_index, config, available_cash,
                 open_positions, trades, self._trade_executor, self._sizer,
-                self._entry_filter,
+                self._entry_filter, self._exit_advisor,
             )
             # WHY: 매 bar 처리 완료 후 mark-to-market 스냅샷을 기록한다.
             #      M2 한정: 미실현 손익 = 현재 bar close 기준 mark-to-market.
@@ -173,6 +189,7 @@ def _process_timestamp_signals(
     executor: TradeExecutor,
     sizer: PositionSizer,
     entry_filter: EntryFilter | None,
+    exit_advisor: ExitAdvisor | None,
 ) -> Decimal:
     """단일 timestamp 의 신호 목록을 처리하고 갱신된 가용 현금을 반환한다.
 
@@ -182,6 +199,26 @@ def _process_timestamp_signals(
     """
     long_signals = [s for s in signals if s.side == Side.LONG]
     exit_signals = [s for s in signals if s.side == Side.EXIT]
+
+    # WHY: M5 S14 — ExitAdvisor 가 주입되면 매 bar 강제 청산 대상을 받아
+    #      합성 EXIT 신호로 변환해 기존 EXIT 처리 파이프에 합류시킨다.
+    #      이미 사용자 신호로 EXIT 가 있는 심볼은 중복 합성하지 않는다.
+    if exit_advisor is not None and open_positions:
+        position_views = _build_position_views(open_positions, bar_index, ts)
+        equity_now = available_cash + sum(
+            (pv.current_price * pv.quantity for pv in position_views.values()),
+            Decimal("0"),
+        )
+        forced = exit_advisor.advise(ts, position_views, available_cash, equity_now)
+        existing_exit_tickers = {s.ticker for s in exit_signals}
+        for symbol in forced:
+            if symbol in existing_exit_tickers or symbol not in open_positions:
+                continue
+            if (symbol, ts) not in bar_index:
+                continue  # WHY: 해당 bar 가 없으면 청산 불가, 다음 bar 로 위임
+            exit_signals.append(
+                Signal(timestamp=ts, ticker=symbol, side=Side.EXIT, strength=Decimal("1.0"))
+            )
 
     # WHY: EXIT 먼저 처리해 현금을 회수한 뒤 LONG 진입에 활용할 수 있게 한다.
     for signal in exit_signals:
@@ -241,6 +278,29 @@ def _process_timestamp_signals(
         available_cash -= invested
 
     return available_cash
+
+
+def _build_position_views(
+    open_positions: dict[str, Position],
+    bar_index: dict,
+    ts: datetime,
+) -> dict[str, PositionView]:
+    """ExitAdvisor 평가용 PositionView 매핑을 만든다.
+
+    WHY: 현재 bar close 가 있으면 mark-to-market, 없으면 entry_price 로 근사.
+         _calc_equity_snapshot 과 동일한 정책을 따른다.
+    """
+    views: dict[str, PositionView] = {}
+    for symbol, pos in open_positions.items():
+        bar = bar_index.get((pos.ticker, ts))
+        current = bar.close if bar is not None else pos.entry_price
+        views[symbol] = PositionView(
+            symbol=symbol,
+            quantity=pos.quantity,
+            entry_price=pos.entry_price,
+            current_price=current,
+        )
+    return views
 
 
 def _process_exit(
