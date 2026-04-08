@@ -130,6 +130,7 @@ docker compose up
 | M4 S5 | /backtest/pair/{a}/{b}/walk-forward-kfold — folds=k, k-1 rolling 폴드 + IS/OOS 평균 집계. 499 GREEN, 10 KEPT | ✅ | feature/backtest/walk-forward-kfold |
 | M5 S1 | ADR-006 + risk 도메인 값 객체 (PositionSnapshot, RiskContext, Allow/BlockNew/ForceClose). 515 GREEN, 10 KEPT | ✅ | feature/risk/domain-value-objects |
 | M5 S2 | RiskGuard 포트 + EvaluateRisk 유스케이스 (체인 평가, 보수적 우선, 다중 ForceClose 병합). 520 GREEN, 10 KEPT | ✅ | feature/risk/evaluate-use-case |
+| M5 S3 | PositionLimitGuard (G1) — 단일 심볼 max_weight 한도 + 경계값 3종 + 기존/후보 합산 검사. 529 GREEN, 10 KEPT | ✅ | feature/risk/position-limit-guard |
 
 ### 🔴 블로커
 없음
