@@ -16,6 +16,7 @@ from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExe
 from backtest.adapters.outbound.ratio_performance_calculator import RatioPerformanceCalculator
 from backtest.adapters.outbound.strength_position_sizer import StrengthPositionSizer
 from backtest.application.ports.entry_filter import EntryFilter
+from backtest.application.ports.exit_advisor import ExitAdvisor
 from backtest.application.ports.position_sizer import PositionSizer
 from backtest.application.use_cases.run_backtest import RunBacktest
 from backtest.domain.backtest_config import BacktestConfig
@@ -30,6 +31,7 @@ class InMemoryBacktestEngine:
         performance_calculator: RatioPerformanceCalculator | None = None,
         sizer: PositionSizer | None = None,
         entry_filter: EntryFilter | None = None,
+        exit_advisor: ExitAdvisor | None = None,
     ) -> None:
         """기본 구현체를 주입하거나 외부에서 교체 가능하게 초기화한다.
 
@@ -44,6 +46,7 @@ class InMemoryBacktestEngine:
         self._performance_calculator = performance_calculator
         self._sizer = sizer
         self._entry_filter = entry_filter
+        self._exit_advisor = exit_advisor
 
     def run(
         self,
@@ -66,5 +69,6 @@ class InMemoryBacktestEngine:
 
         use_case = RunBacktest(
             self._trade_executor, calculator, self._sizer, self._entry_filter,
+            self._exit_advisor,
         )
         return use_case.execute(signals, price_history, config)
