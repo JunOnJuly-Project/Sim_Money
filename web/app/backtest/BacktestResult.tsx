@@ -229,7 +229,7 @@ function TradesTable({ trades }: { trades: Trade[] }) {
       </h3>
       {/* WHY: 거래가 많으면 페이지가 길어지므로 최대 높이로 스크롤 영역을 제한한다 */}
       <div
-        className="overflow-x-auto rounded-md border"
+        className="pretty-scroll overflow-x-auto rounded-md border"
         style={{ borderColor: "var(--border)", maxHeight: "300px", overflowY: "auto" }}
       >
         <table className="w-full text-xs">

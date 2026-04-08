@@ -24,3 +24,29 @@ body {
     system-ui,
     sans-serif;
 }
+
+/* WHY: 기본 OS 스크롤바는 다크 테마와 조화가 깨지고 두껍다. 얇고 반투명한
+        커스텀 스크롤바로 통일한다. Firefox 는 scrollbar-* 표준, Chromium 은
+        ::-webkit-scrollbar 로 이중 커버. */
+.pretty-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.35) transparent;
+}
+.pretty-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.pretty-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pretty-scroll::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.28);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.pretty-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}

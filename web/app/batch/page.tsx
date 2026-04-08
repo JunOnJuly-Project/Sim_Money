@@ -271,7 +271,7 @@ export default function BatchPage() {
               CSV 내보내기
             </button>
           </div>
-          <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
+          <div className="pretty-scroll overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ backgroundColor: "var(--card-bg)", borderBottom: "1px solid var(--border)" }}>

@@ -167,37 +167,53 @@ export default function SymbolPicker({
         </p>
       )}
 
-      {/* WHY: 기본 HTML select 대신 커스텀 리스트로 렌더해 스타일 일관성과 한글명 병기 표시가 가능하다. */}
+      {/* WHY: 스크롤 리스트 대신 칩(chip) 그리드 — 라디오 버튼 UX 에 가까워 선택 상태가
+               명확하다. 종목이 많으면 pretty-scroll 로 세로 스크롤 허용. */}
       <div
-        className="max-h-48 overflow-y-auto rounded border text-sm"
+        className="pretty-scroll max-h-60 overflow-y-auto rounded-lg border p-2"
         style={{ borderColor: "var(--border)", backgroundColor: "var(--card-bg)" }}
       >
         {items.length === 0 && !loading ? (
-          <p className="px-3 py-2" style={{ color: "var(--muted)" }}>
+          <p className="px-3 py-2 text-xs" style={{ color: "var(--muted)" }}>
             결과 없음
           </p>
         ) : (
-          items.map((it) => {
-            const isSelected = it.symbol === symbol && it.market === market;
-            return (
-              <button
-                key={`${it.market}:${it.symbol}`}
-                type="button"
-                onClick={() => onChange({ market: it.market, symbol: it.symbol })}
-                className="block w-full px-3 py-1.5 text-left transition-colors"
-                style={{
-                  backgroundColor: isSelected ? "rgba(56,189,248,0.15)" : "transparent",
-                  color: isSelected ? "var(--accent)" : "var(--foreground)",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                <span className="font-mono mr-2 text-xs" style={{ color: "var(--muted)" }}>
-                  {it.market}
-                </span>
-                {formatTickerLabel(it.market, it.symbol)}
-              </button>
-            );
-          })
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            {items.map((it) => {
+              const isSelected = it.symbol === symbol && it.market === market;
+              return (
+                <button
+                  key={`${it.market}:${it.symbol}`}
+                  type="button"
+                  onClick={() => onChange({ market: it.market, symbol: it.symbol })}
+                  className="group flex items-center gap-1.5 truncate rounded-md px-2.5 py-1.5 text-left text-xs transition-all"
+                  style={{
+                    backgroundColor: isSelected ? "rgba(56,189,248,0.18)" : "rgba(255,255,255,0.02)",
+                    border: isSelected
+                      ? "1px solid var(--accent)"
+                      : "1px solid rgba(255,255,255,0.06)",
+                    color: isSelected ? "var(--accent)" : "var(--foreground)",
+                    boxShadow: isSelected ? "0 0 0 2px rgba(56,189,248,0.15)" : "none",
+                  }}
+                >
+                  <span
+                    className="flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-full"
+                    style={{
+                      border: `1.5px solid ${isSelected ? "var(--accent)" : "var(--muted)"}`,
+                    }}
+                  >
+                    {isSelected && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: "var(--accent)" }}
+                      />
+                    )}
+                  </span>
+                  <span className="truncate">{formatTickerLabel(it.market, it.symbol)}</span>
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

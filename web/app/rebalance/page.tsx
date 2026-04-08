@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import ParamHelp from "../_components/ParamHelp";
+import SymbolSelect from "../_components/SymbolSelect";
 
 // ── 상수 ──────────────────────────────────────────────────────────────────
 
@@ -117,7 +118,7 @@ function PositionTable({ rows, onAdd, onRemove, onChange }: PositionTableProps) 
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
+      <div className="pretty-scroll overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--card-bg)", borderBottom: `1px solid var(--border)` }}>
@@ -131,17 +132,9 @@ function PositionTable({ rows, onAdd, onRemove, onChange }: PositionTableProps) 
             {rows.map((row) => (
               <tr key={row.id} className="border-t" style={{ borderColor: "var(--border)" }}>
                 <td className="px-3 py-2">
-                  <input
-                    type="text"
+                  <SymbolSelect
                     value={row.symbol}
-                    placeholder="예: AAPL"
-                    onChange={(e) => onChange(row.id, "symbol", e.target.value)}
-                    className="w-full rounded border px-2 py-1 text-xs"
-                    style={{
-                      backgroundColor: "var(--card-bg)",
-                      borderColor: "var(--border)",
-                      color: "var(--foreground)",
-                    }}
+                    onChange={(v) => onChange(row.id, "symbol", v)}
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -243,7 +236,7 @@ function TargetTable({ rows, onAdd, onRemove, onChange }: TargetTableProps) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
+      <div className="pretty-scroll overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--card-bg)", borderBottom: `1px solid var(--border)` }}>
@@ -256,17 +249,9 @@ function TargetTable({ rows, onAdd, onRemove, onChange }: TargetTableProps) {
             {rows.map((row) => (
               <tr key={row.id} className="border-t" style={{ borderColor: "var(--border)" }}>
                 <td className="px-3 py-2">
-                  <input
-                    type="text"
+                  <SymbolSelect
                     value={row.symbol}
-                    placeholder="예: AAPL"
-                    onChange={(e) => onChange(row.id, "symbol", e.target.value)}
-                    className="w-full rounded border px-2 py-1 text-xs"
-                    style={{
-                      backgroundColor: "var(--card-bg)",
-                      borderColor: "var(--border)",
-                      color: "var(--foreground)",
-                    }}
+                    onChange={(v) => onChange(row.id, "symbol", v)}
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -327,7 +312,7 @@ function ResultTable({ intents }: ResultTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
+    <div className="pretty-scroll overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
       <table className="w-full text-sm">
         <thead>
           <tr style={{ backgroundColor: "var(--card-bg)", borderBottom: `1px solid var(--border)` }}>
@@ -504,7 +489,7 @@ export default function RebalancePage() {
       {/* ADR-000: 개인 전용 고지 문구 — 페이지 최상단 배치 필수 */}
       <DisclaimerBanner />
 
-      <ParamHelp keys={["max_position_weight", "cash_buffer"]} />
+      <ParamHelp keys={["max_position_weight", "cash_buffer", "initial"]} />
 
       {/* 상단 내비게이션 */}
       <div className="flex gap-3">

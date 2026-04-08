@@ -10,6 +10,7 @@ import { BlockMath } from "react-katex";
 import PairChart from "./PairChart";
 import SymbolPicker from "./_components/SymbolPicker";
 import SimilarityHeatmap from "./_components/SimilarityHeatmap";
+import ParamHelp from "./_components/ParamHelp";
 
 // ── 타입 정의 ──────────────────────────────────────────────────────────────
 
@@ -368,7 +369,7 @@ function ResultTable({ items, selectedTicker, onRowClick }: ResultTableProps) {
   if (items.length === 0) return null;
 
   return (
-    <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
+    <div className="pretty-scroll overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
       <table className="w-full text-sm">
         <thead>
           <tr style={{ backgroundColor: "var(--card-bg)", borderBottom: `1px solid var(--border)` }}>
@@ -521,6 +522,8 @@ export default function ExplorePage() {
     <main className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
       {/* ADR-000: 개인 전용 고지 문구 — 페이지 최상단 배치 필수 */}
       <DisclaimerBanner />
+
+      <ParamHelp keys={["lookback"]} />
 
       {/* WHY: 주요 도구로의 내비게이션을 최상단에 노출해 탐색성을 높인다 */}
       <div className="flex gap-3">
