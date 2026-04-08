@@ -65,7 +65,7 @@ class RunBacktest:
         config: BacktestConfig,
     ) -> BacktestResult:
         """신호·가격 이력·설정을 받아 백테스트를 실행하고 결과를 반환한다."""
-        bar_index = _build_bar_index(price_history)
+        bar_index, bar_timestamps = _build_bar_index(price_history)
         sorted_signals = sorted(signals, key=lambda s: s.timestamp)
 
         open_positions: dict[str, Position] = {}
@@ -94,7 +94,7 @@ class RunBacktest:
         #      평가해야 하므로 신호 timestamp 와 bar timestamp 의 합집합을 순회한다.
         #      advisor 가 None 이면 기존 동작(신호 ts 만 순회) 그대로 → 골든 회귀 0.
         if self._exit_advisor is not None:
-            all_ts = sorted(set(signals_by_ts.keys()) | {key[1] for key in bar_index.keys()})
+            all_ts = sorted(set(signals_by_ts.keys()) | bar_timestamps)
         else:
             all_ts = sorted(signals_by_ts.keys())
 
@@ -147,16 +147,20 @@ def _dedup_equity_curve(
 
 def _build_bar_index(
     price_history: Mapping[str, Sequence[PriceBar]],
-) -> dict[tuple[str, datetime], PriceBar]:
+) -> tuple[dict[tuple[str, datetime], PriceBar], frozenset[datetime]]:
     """price_history 를 (ticker, timestamp) → PriceBar 딕셔너리로 변환한다.
 
     WHY: 신호마다 O(1) 조회를 보장해 시뮬레이션 전체 복잡도를 낮춘다.
+         ExitAdvisor 순회용 유니크 timestamp 집합도 함께 반환해
+         execute() 에서 재계산 비용을 제거한다.
     """
     index: dict[tuple[str, datetime], PriceBar] = {}
+    timestamps: set[datetime] = set()
     for ticker, bars in price_history.items():
         for bar in sorted(bars, key=lambda b: b.timestamp):
             index[(ticker, bar.timestamp)] = bar
-    return index
+            timestamps.add(bar.timestamp)
+    return index, frozenset(timestamps)
 
 
 def _calc_equity_snapshot(
@@ -171,14 +175,15 @@ def _calc_equity_snapshot(
     해당 timestamp 의 bar 가 없는 포지션은 entry_price 로 근사한다.
     정식 구현(히스토리컬 close lookup 등)은 M3 예정.
     """
-    unrealized: Decimal = sum(
+    unrealized = sum(
         (
             bar_index[(pos.ticker, ts)].close * pos.quantity
             if (pos.ticker, ts) in bar_index
             else pos.entry_price * pos.quantity
-        )
-        for pos in open_positions.values()
-    ) or Decimal("0")
+            for pos in open_positions.values()
+        ),
+        Decimal("0"),
+    )
     return (ts, available_cash + unrealized)
 
 

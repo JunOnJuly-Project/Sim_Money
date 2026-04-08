@@ -61,6 +61,8 @@ class RiskContext:
         positions: 현재 열린 포지션 스냅샷 튜플
         candidate_symbol: 진입 후보 심볼 (없으면 None)
         candidate_notional: 진입 후보 명목 금액 (없으면 None)
+        available_cash: 가용 현금 (선택) — 향후 마진/현금 가드 확장 지점.
+            기본 None 이면 가드는 equity 만 참조한다.
     """
 
     timestamp: datetime
@@ -70,6 +72,7 @@ class RiskContext:
     positions: Tuple[PositionSnapshot, ...] = field(default_factory=tuple)
     candidate_symbol: str | None = None
     candidate_notional: Decimal | None = None
+    available_cash: Decimal | None = None
 
     def __post_init__(self) -> None:
         if self.equity <= _ZERO:

@@ -34,7 +34,7 @@ class RiskExitAdvisor:
         self,
         timestamp: datetime,
         positions: Mapping[str, PositionView],
-        available_cash: Decimal,  # noqa: ARG002 - 가드 체인은 equity 만 사용
+        available_cash: Decimal,
         equity: Decimal,
     ) -> Sequence[str]:
         if not positions:
@@ -57,6 +57,7 @@ class RiskExitAdvisor:
             peak_equity=self._session.peak_equity or equity,
             daily_start_equity=self._session.daily_start_equity or equity,
             positions=snapshots,
+            available_cash=available_cash,
         )
         decisions = self._evaluator.evaluate(ctx)
         return [d.symbol for d in decisions if isinstance(d, ForceClose)]

@@ -33,10 +33,25 @@ class RiskWeightCapValidator:
         targets: Sequence[TargetWeight],
         max_position_weight: Decimal,
     ) -> None:
+        """단일 종목 캡을 검사한다.
+
+        정책:
+            - weight == 0 → 비활성 포지션(검증 대상 아님) 으로 간주해 건너뛴다.
+              PositionLimitGuard 는 양수 notional 만 받는 제약도 있다.
+            - weight < 0 → TargetWeight 값 객체 불변식 (0 ≤ weight ≤ 1) 이 이미
+              생성 시점에 차단하므로 이 경로에 도달하면 안 된다. 방어적으로
+              `ConstraintViolation` 으로 즉시 실패시킨다.
+            - 0 < weight ≤ max_weight → Allow
+            - weight > max_weight → ConstraintViolation
+        """
         guard = PositionLimitGuard(max_weight=max_position_weight)
         for t in targets:
-            if t.weight <= _ZERO:
-                continue  # WHY: PositionLimitGuard 는 양수 notional 만 받는다
+            if t.weight < _ZERO:
+                raise ConstraintViolation(
+                    f"{t.symbol} 목표 비중 {t.weight} 이 음수 (불변식 위반)"
+                )
+            if t.weight == _ZERO:
+                continue
             ctx = RiskContext(
                 timestamp=_FIXED_TS,
                 equity=_ONE,
