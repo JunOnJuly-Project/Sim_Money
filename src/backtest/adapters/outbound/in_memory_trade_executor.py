@@ -4,13 +4,16 @@
 WHY: 테스트·백테스트 시뮬레이션에서 외부 브로커 API 없이도
      슬리피지·수수료 공식을 정확히 재현하기 위해 인메모리로 구현한다.
      실거래 어댑터로 교체 시 이 파일만 바꾸면 되도록 포트 계약을 준수한다.
+
+사이저 분리 이유:
+     PositionSizer 를 RunBacktest 유스케이스가 직접 보유하고
+     size_group 으로 그룹 단위 처리 후 weight 를 executor 에 전달한다.
+     executor 는 weight 를 받아 수량 계산만 수행해 단일 책임을 유지한다.
 """
 from __future__ import annotations
 
 from decimal import Decimal
 
-from backtest.adapters.outbound.strength_position_sizer import StrengthPositionSizer
-from backtest.application.ports.position_sizer import PositionSizer
 from backtest.domain.backtest_config import BacktestConfig
 from backtest.domain.position import Position
 from backtest.domain.price_bar import PriceBar
@@ -24,14 +27,13 @@ _BPS_DIVISOR = Decimal("10000")
 class InMemoryTradeExecutor:
     """슬리피지·수수료 공식을 메모리 내에서 시뮬레이션하는 TradeExecutor 어댑터."""
 
-    def __init__(self, sizer: PositionSizer | None = None) -> None:
-        """PositionSizer 를 주입받아 초기화한다.
+    def __init__(self) -> None:
+        """초기화한다.
 
-        WHY: 사이징 전략을 생성자 주입으로 분리해 Portfolio 기반 사이저 등
-             다양한 구현체를 기존 호출부 변경 없이 교체할 수 있다.
-             기본값 StrengthPositionSizer 로 기존 동작과 100% 호환된다.
+        WHY: 사이저는 RunBacktest 유스케이스가 직접 관리하므로
+             executor 는 weight 를 명시적으로 전달받아 수량 계산만 수행한다.
+             단일 책임 원칙을 준수하고 executor 의 역할을 명확히 한다.
         """
-        self._sizer: PositionSizer = sizer if sizer is not None else StrengthPositionSizer()
 
     def open_long(
         self,
@@ -39,14 +41,15 @@ class InMemoryTradeExecutor:
         bar: PriceBar,
         config: BacktestConfig,
         available_cash: Decimal,
+        weight: Decimal,
     ) -> Position:
         """LONG 포지션을 생성한다.
 
-        WHY: 진입 시 슬리피지는 불리한 방향(가격 상승)으로 적용해야
-             실제 시장과 동일한 비용 구조를 재현할 수 있다.
+        WHY: weight 를 명시적으로 전달받아 사이저 호출 없이 수량을 계산한다.
+             진입 시 슬리피지는 불리한 방향(가격 상승)으로 적용해
+             실제 시장과 동일한 비용 구조를 재현한다.
         """
         fill_price = _calc_long_fill(bar.close, config.slippage_bps)
-        weight = self._sizer.size(signal, available_cash)
         quantity = _calc_quantity(available_cash, weight, fill_price)
         return Position(
             ticker=signal.ticker,

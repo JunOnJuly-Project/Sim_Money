@@ -348,12 +348,11 @@ def create_app(
         )
 
         # 8. InMemoryBacktestEngine 실행 — 선택된 사이저 주입
-        # WHY: max_position_weight/cash_buffer 는 equal_weight 선택 시에만 의미 있다.
-        #      다른 사이저에서는 _build_sizer 내부에서 무시된다.
-        from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
+        # WHY: 사이저는 RunBacktest 유스케이스가 관리한다(M3 S13).
+        #      InMemoryBacktestEngine.sizer 파라미터로 전달해 RunBacktest 에 위임한다.
+        #      max_position_weight/cash_buffer 는 equal_weight 선택 시에만 의미 있다.
         sizer_instance = _build_sizer(sizer, max_position_weight, cash_buffer)
-        executor = InMemoryTradeExecutor(sizer=sizer_instance) if sizer_instance else InMemoryTradeExecutor()
-        engine = InMemoryBacktestEngine(trade_executor=executor)
+        engine = InMemoryBacktestEngine(sizer=sizer_instance)
         result = engine.run(backtest_signals, price_history, config)
 
         # 9. 응답 직렬화 — 사용된 설정을 echo 로 포함해 UI 가 실행 조건을 표시할 수 있게 한다

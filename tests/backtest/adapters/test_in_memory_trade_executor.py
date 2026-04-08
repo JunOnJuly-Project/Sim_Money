@@ -10,11 +10,15 @@ WHY: TradeExecutor 포트의 구체 구현인 InMemoryTradeExecutor 가
     EXIT  fill_price = close * (1 - slippage_bps / 10_000)
 
 수량 공식:
-    quantity = (available_cash * Decimal(str(strength))) / fill_price
+    quantity = (available_cash * weight) / fill_price
 
 손익 공식:
     pnl = (exit_price - entry_price) * quantity - entry_fee - exit_fee
     fee = notional * fee_rate  (진입/청산 각각)
+
+변경 이력:
+    M3 S13: open_long 에 weight 인자 추가 (사이저는 RunBacktest 유스케이스가 관리).
+            기존 strength 기반 수량 공식은 weight 를 직접 전달하는 방식으로 교체.
 """
 from __future__ import annotations
 
@@ -105,8 +109,8 @@ class TestInMemoryTradeExecutor_open_long_기본:
     """open_long — fee=0, slippage=0 기본 케이스."""
 
     def test_LONG_진입_시_수량과_진입가가_정확하다(self) -> None:
-        """WHY: fee=0, slippage=0 조건에서 수량 = available_cash / close 여야 한다.
-               가장 단순한 케이스를 먼저 통과시켜 공식 기반을 검증한다."""
+        """WHY: fee=0, slippage=0 조건에서 수량 = available_cash * weight / close 여야 한다.
+               weight=1.0 이면 available_cash 전액 투자이므로 qty = available_cash / close."""
         from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
 
         executor = InMemoryTradeExecutor()
@@ -115,11 +119,10 @@ class TestInMemoryTradeExecutor_open_long_기본:
         config = _config(fee_rate="0", slippage_bps="0")
         available_cash = Decimal("10000")
 
-        position = executor.open_long(signal, bar, config, available_cash)
+        # weight=1.0 → qty = 10000 * 1.0 / 100 = 100
+        position = executor.open_long(signal, bar, config, available_cash, Decimal("1"))
 
-        # 수량 = 10000 / 100 = 100
         assert position.quantity == Decimal("100")
-        # 진입가 = close (슬리피지 없음)
         assert position.entry_price == Decimal("100")
         assert position.ticker == "AAPL"
 
@@ -134,7 +137,7 @@ class TestInMemoryTradeExecutor_open_long_기본:
         config = _config()
         available_cash = Decimal("5000")
 
-        position = executor.open_long(signal, bar, config, available_cash)
+        position = executor.open_long(signal, bar, config, available_cash, Decimal("1"))
 
         assert position.entry_time == ts
 
@@ -209,11 +212,10 @@ class TestInMemoryTradeExecutor_수수료:
         exit_ts = _utc(2024, 1, 2)
         config = _config(fee_rate="0.001", slippage_bps="0")
 
-        # 진입가 100, 수량 계산: available_cash=10000, strength=Decimal("1.0")
-        # fill_price(LONG)=100, qty=10000/100=100
+        # weight=1.0 → qty = 10000 * 1.0 / 100 = 100
         signal = _long_signal("AAPL", strength=Decimal("1"))
         bar_entry = _bar("AAPL", close="100", ts=entry_ts)
-        position = executor.open_long(signal, bar_entry, config, Decimal("10000"))
+        position = executor.open_long(signal, bar_entry, config, Decimal("10000"), Decimal("1"))
 
         bar_exit = _bar("AAPL", close="110", ts=exit_ts)
         trade = executor.close_position(position, bar_exit, config)
@@ -239,7 +241,7 @@ class TestInMemoryTradeExecutor_슬리피지:
         signal = _long_signal("AAPL", strength=Decimal("1"))
         bar = _bar("AAPL", close="100", ts=_utc(2024, 1, 1))
 
-        position = executor.open_long(signal, bar, config, Decimal("10000"))
+        position = executor.open_long(signal, bar, config, Decimal("10000"), Decimal("1"))
 
         # fill_price = 100 * 1.001 = 100.1
         expected_fill = Decimal("100") * (1 + Decimal("10") / Decimal("10000"))
@@ -271,11 +273,11 @@ class TestInMemoryTradeExecutor_슬리피지:
         assert trade.exit_price == expected_exit
 
 
-class TestInMemoryTradeExecutor_strength:
-    """strength 에 따른 수량 비례 케이스."""
+class TestInMemoryTradeExecutor_weight:
+    """weight 에 따른 수량 비례 케이스."""
 
-    def test_strength_05이면_수량이_1의_절반이다(self) -> None:
-        """WHY: strength=Decimal("0.5") 는 가용 현금의 절반만 투자하라는 신호다.
+    def test_weight_05이면_수량이_1의_절반이다(self) -> None:
+        """WHY: weight=0.5 는 가용 현금의 절반만 투자하라는 의미다.
                quantity = (available_cash * 0.5) / fill_price"""
         from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
 
@@ -287,10 +289,11 @@ class TestInMemoryTradeExecutor_strength:
         bar = _bar("AAPL", close="100", ts=_utc(2024, 1, 1))
         available_cash = Decimal("10000")
 
-        pos_full = executor.open_long(signal_full, bar, config, available_cash)
-        pos_half = executor.open_long(signal_half, bar, config, available_cash)
+        # weight 를 명시적으로 전달
+        pos_full = executor.open_long(signal_full, bar, config, available_cash, Decimal("1"))
+        pos_half = executor.open_long(signal_half, bar, config, available_cash, Decimal("0.5"))
 
-        # strength=Decimal("1.0") → qty=100, strength=Decimal("0.5") → qty=50
+        # weight=1.0 → qty=100, weight=0.5 → qty=50
         assert pos_half.quantity == pos_full.quantity / 2
 
 
@@ -303,12 +306,12 @@ class TestInMemoryTradeExecutor_Decimal_정밀도:
         from backtest.adapters.outbound.in_memory_trade_executor import InMemoryTradeExecutor
 
         executor = InMemoryTradeExecutor()
-        # close=3 이면 qty = 10000 / 3 → 소수 발생
+        # close=3 이면 qty = 10000 * 1.0 / 3 → 소수 발생
         config = _config(fee_rate="0", slippage_bps="0")
         signal = _long_signal("AAPL", strength=Decimal("1"))
         bar = _bar("AAPL", close="3", ts=_utc(2024, 1, 1))
 
-        position = executor.open_long(signal, bar, config, Decimal("10000"))
+        position = executor.open_long(signal, bar, config, Decimal("10000"), Decimal("1"))
 
         assert isinstance(position.quantity, Decimal)
         assert isinstance(position.entry_price, Decimal)
