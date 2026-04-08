@@ -114,6 +114,7 @@ docker compose up
 | M3 S6 | ADR-005 L3 수평 의존 정책 + /backtest/pair max_position_weight/cash_buffer 쿼리 + UI 조건부 제약 입력 블록. 441 GREEN, 10 KEPT | ✅ | feature/api/portfolio-constraints |
 | M3 S7 | POST /portfolio/rebalance — PlanRebalance 유스케이스 HTTP 노출 + 7 테스트 GREEN, 10 KEPT | ✅ | feature/api/portfolio-rebalance |
 | M3 S8 | portfolio 커버리지 100% — EqualWeightStrategy 사도(死道) 분기 제거 + errors.py 테스트 + plan_rebalance total_equity=0 분기 테스트. 453 GREEN, 10 KEPT | ✅ | chore/portfolio/coverage |
+| M3 S9 | 리밸런싱 플래너 UI (/rebalance) — 현재 포지션/목표 가중치 동적 폼 + 합계 검증 + BUY/SELL 결과 테이블 + 홈 네비 링크 | ✅ | feature/web/rebalance-planner |
 
 ### 🔴 블로커
 없음
