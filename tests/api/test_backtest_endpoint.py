@@ -468,6 +468,33 @@ class TestBacktestWalkForward:
         assert response.status_code == 422
 
 
+class TestBacktestWalkForwardKFold:
+    """/backtest/pair/{a}/{b}/walk-forward-kfold 엔드포인트 통합 테스트 (M4 S5)."""
+
+    def test_kfold_폴드_수와_집계를_반환한다(self) -> None:
+        """WHY: folds=3 이면 k-1=2 개 폴드와 IS/OOS 평균이 계산돼야 한다."""
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+
+        response = client.get("/backtest/pair/AAA/BBB/walk-forward-kfold?folds=3")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["folds"] == 3
+        assert body["fold_count"] == 2
+        assert len(body["results"]) == 2
+        assert "avg_is_total_return" in body["aggregate"]
+        assert "avg_oos_total_return" in body["aggregate"]
+
+    def test_folds_1_은_422(self) -> None:
+        """WHY: ge=2 제약으로 folds=1 은 거부된다."""
+        series_a = _make_price_series("AAA", n=_SERIES_N, start_price=100.0)
+        series_b = _make_price_series("BBB", n=_SERIES_N, start_price=200.0)
+        client = _make_client(series_a, series_b)
+        response = client.get("/backtest/pair/AAA/BBB/walk-forward-kfold?folds=1")
+        assert response.status_code == 422
+
+
 class TestBacktestBatch:
     """POST /backtest/batch 엔드포인트 통합 테스트 (M4 S3)."""
 

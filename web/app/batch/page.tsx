@@ -48,6 +48,51 @@ export default function BatchPage() {
   const [response, setResponse] = useState<BatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sortKey, setSortKey] = useState<"none" | "total_return" | "sharpe" | "sortino" | "max_drawdown">("none");
+  const [hideErrors, setHideErrors] = useState(false);
+
+  // WHY: 실패 행은 항상 뒤로 밀어 순위 왜곡을 방지한다.
+  function sortedResults(results: PairResult[]): PairResult[] {
+    const ok = results.filter((r) => r.metrics !== undefined);
+    const bad = results.filter((r) => r.metrics === undefined);
+    if (sortKey !== "none") {
+      ok.sort((a, b) => {
+        const av = a.metrics![sortKey];
+        const bv = b.metrics![sortKey];
+        // max_drawdown 은 음수라 오름차순(덜 나쁜 순), 나머지는 내림차순.
+        return sortKey === "max_drawdown" ? av - bv : bv - av;
+      });
+    }
+    return hideErrors ? ok : [...ok, ...bad];
+  }
+
+  function downloadCsv() {
+    if (response === null) return;
+    const header = ["pair_a", "pair_b", "total_return", "sharpe", "sortino", "calmar", "max_drawdown", "win_rate", "trade_count", "error"];
+    const rows: (string | number)[][] = [header];
+    for (const r of sortedResults(response.results)) {
+      rows.push([
+        r.pair.a,
+        r.pair.b,
+        r.metrics?.total_return ?? "",
+        r.metrics?.sharpe ?? "",
+        r.metrics?.sortino ?? "",
+        r.metrics?.calmar ?? "",
+        r.metrics?.max_drawdown ?? "",
+        r.metrics?.win_rate ?? "",
+        r.trade_count ?? "",
+        r.error ?? "",
+      ]);
+    }
+    const csv = rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `batch-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   function addPair() {
     setPairs((prev) => [...prev, { id: genId(), a: "", b: "" }]);
@@ -197,6 +242,35 @@ export default function BatchPage() {
               </>
             )}
           </div>
+          <div className="flex items-center gap-3 flex-wrap text-xs">
+            <label className="flex items-center gap-1" style={{ color: "var(--muted)" }}>
+              정렬
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as typeof sortKey)}
+                className="rounded border px-2 py-1"
+                style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border)", color: "var(--foreground)" }}
+              >
+                <option value="none">원래 순서</option>
+                <option value="total_return">수익률 ↓</option>
+                <option value="sharpe">Sharpe ↓</option>
+                <option value="sortino">Sortino ↓</option>
+                <option value="max_drawdown">MDD ↑(덜 나쁨)</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1" style={{ color: "var(--muted)" }}>
+              <input type="checkbox" checked={hideErrors} onChange={(e) => setHideErrors(e.target.checked)} />
+              실패 숨김
+            </label>
+            <button
+              type="button"
+              onClick={downloadCsv}
+              className="rounded border px-3 py-1"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)", backgroundColor: "rgba(56,189,248,0.08)" }}
+            >
+              CSV 내보내기
+            </button>
+          </div>
           <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border)" }}>
             <table className="w-full text-sm">
               <thead>
@@ -210,7 +284,7 @@ export default function BatchPage() {
                 </tr>
               </thead>
               <tbody>
-                {response.results.map((r, i) => (
+                {sortedResults(response.results).map((r, i) => (
                   <tr key={i} className="border-t" style={{ borderColor: "var(--border)" }}>
                     <td className="px-3 py-2 font-mono" style={{ color: "var(--foreground)" }}>
                       {r.pair.a} / {r.pair.b}
