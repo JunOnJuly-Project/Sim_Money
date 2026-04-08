@@ -118,6 +118,9 @@ docker compose up
 | M3 S10 | ScoreWeightedStrategy — 두 번째 WeightingStrategy (score 비율 가중, 합=0 폴백, 캡 적용) + /backtest/pair sizer=score_weighted 옵션 + UI 토글. 463 GREEN, 10 KEPT | ✅ | feature/portfolio/score-weighted |
 | M3 S11 | POST /portfolio/compute — ComputeTargetWeights HTTP 노출 (equal/score 전략 선택, cash_buffer/max_position_weight 적용). 470 GREEN, 10 KEPT | ✅ | feature/api/portfolio-compute |
 | M3 S12 | /backtest/pair 응답에 config 에코 추가 + 대시보드 설정 카드 표시. 471 GREEN, 10 KEPT | ✅ | feature/api/backtest-metadata |
+| M3 S13 | 백테스트 엔진 그룹 단위 포트폴리오 사이징 (PositionSizer.size_group, initial_cash 스냅샷). 477 GREEN, 10 KEPT | ✅ | feature/backtest/group-sizing |
+| M3 S14 | Sortino·Calmar 리스크 지표 추가 + API 응답 노출. 482 GREEN, 10 KEPT | ✅ | feature/backtest/sortino-calmar |
+| M3 S15 | PlanRebalance 제약 사후 검증 (max_position_weight / cash_buffer → ConstraintViolation). 485 GREEN, 10 KEPT | ✅ | feature/portfolio/plan-constraints |
 
 ### 🔴 블로커
 없음
